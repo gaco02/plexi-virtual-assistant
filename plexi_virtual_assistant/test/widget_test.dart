@@ -9,11 +9,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:plexi_virtual_assistant/main.dart';
+import 'package:plexi_virtual_assistant/services/api_service.dart';
+import 'package:plexi_virtual_assistant/data/repositories/calorie_repository.dart';
 
 void main() {
   testWidgets('Counter increments smoke test', (WidgetTester tester) async {
     // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+    await tester.pumpWidget(MyApp(
+      navigatorKey: GlobalKey<NavigatorState>(),
+      apiService: ApiService(baseUrl: 'https://example.com'),
+      calorieRepository: CalorieRepository(),
+    ));
 
     // Verify that our counter starts at 0.
     expect(find.text('0'), findsOneWidget);
