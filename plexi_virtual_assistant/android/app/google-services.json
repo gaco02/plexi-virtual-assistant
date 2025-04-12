@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "934776140552",
+    "project_id": "virtual-assistant-app-f7f1d",
+    "storage_bucket": "virtual-assistant-app-f7f1d.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:934776140552:android:b5d060d22ced801f8c32bd",
+        "android_client_info": {
+          "package_name": "com.plexi.ai"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "934776140552-apnjnhtle3dpr211pkqss9mhr0ba8n83.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.plexi.ai",
+            "certificate_hash": "b7cb39cd2f2aa04476e959309ea9fcb0b1ebe999"
+          }
+        },
+        {
+          "client_id": "934776140552-qf2usaqkm2mcnffomcb4jlfjl37lknrr.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC8E-flDgaEyoPKkScimxnMKzXE_iaPuU4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "934776140552-qf2usaqkm2mcnffomcb4jlfjl37lknrr.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "934776140552-r6q285h83qiq2baendtp5h1anlj7fnp9.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.plexi.ai"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
