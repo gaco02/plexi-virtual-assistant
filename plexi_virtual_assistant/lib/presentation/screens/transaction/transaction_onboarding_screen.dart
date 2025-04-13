@@ -101,8 +101,8 @@ class _TransactionOnboardingScreenState
               AppBar(
                 backgroundColor: Colors.transparent,
                 elevation: 0,
-                title: const Text('Budget Onboarding',
-                    style: TextStyle(color: Colors.white)),
+                // title: const Text('Budget Onboarding',
+                //     style: TextStyle(color: Colors.white)),
                 leading: IconButton(
                   icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
                   onPressed: () => Navigator.of(context).pop(),
@@ -200,7 +200,7 @@ class _WelcomePage extends StatelessWidget {
           ),
           const SizedBox(height: 24),
           Image.asset(
-            'assets/images/transaction/Picture1.png',
+            'assets/images/transaction/plexi_transactions_2.png',
             height: 180,
             errorBuilder: (context, error, stackTrace) {
               return Container(
@@ -220,42 +220,14 @@ class _WelcomePage extends StatelessWidget {
           ),
           const SizedBox(height: 24),
           const Text(
-            'Just like texting a friend,\ntell Plexi what you spent today.',
+            'Text Plexi like a friend — it’ll handle the rest.',
             textAlign: TextAlign.center,
             style: TextStyle(
               color: Colors.white70,
               fontSize: 16,
             ),
-          ),
-          const SizedBox(height: 24),
-          Image.asset(
-            'assets/images/transaction/transaction_chat.png',
-            height: 160,
-            errorBuilder: (context, error, stackTrace) {
-              return Container(
-                height: 160,
-                width: 160,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade800,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(
-                  Icons.chat,
-                  size: 80,
-                  color: Colors.white70,
-                ),
-              );
-            },
           ),
           const SizedBox(height: 15),
-          const Text(
-            'Plexi will take care of the rest.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Colors.white70,
-              fontSize: 16,
-            ),
-          ),
         ],
       ),
     );
@@ -277,7 +249,7 @@ class _SalaryInputPage extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Text(
-            'To build your budget, we’ll start with your monthly income.',
+            'Hey! What’s your monthly income? I’ll use it to help plan your budget 💰',
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                   color: Colors.white,
                 ),
@@ -286,7 +258,7 @@ class _SalaryInputPage extends StatelessWidget {
           CustomTextField(
             controller: controller,
             keyboardType: TextInputType.number,
-            hintText: 'Enter your monthly salary',
+            hintText: 'Type your monthly take-home💵',
           ),
         ],
       ),
@@ -322,48 +294,51 @@ class _BudgetingRulePage extends StatelessWidget {
       },
       builder: (context, state) {
         return Padding(
-          padding: const EdgeInsets.all(24.0),
+          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const Text(
-                'The 50/30/20 Rule',
+                'Here\'s my favorite\nbudgeting rule —',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 30,
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 20),
+              _buildRuleCard(
+                '🏠',
+                '50% Needs',
+                'Essentials like rent, groceries,\nand utilities.',
+                const Color(0xFF1A4B8E),
+              ),
+              const SizedBox(height: 16),
+              _buildRuleCard(
+                '👜',
+                '30% Wants',
+                'Fun stuff — dining out,\nshopping, entertainment',
+                const Color(0xFF4A2B82),
+              ),
+              const SizedBox(height: 16),
+              _buildRuleCard(
+                '💰',
+                '20% Savings',
+                'For future you — saving,\ninvesting, or paying off debt',
+                const Color(0xFF1E5937),
+              ),
+              const Spacer(),
+              const Text(
+                'Ready to put it into action?',
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 24,
-                  fontWeight: FontWeight.bold,
+                  fontWeight: FontWeight.w600,
                 ),
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'This rule helps simplify budgeting by dividing your income into three clear categories.',
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontSize: 14,
-                ),
-              ),
-              const SizedBox(height: 32),
-              _buildRuleCard(
-                '50%',
-                'Needs',
-                'Essential expenses like rent, utilities, groceries',
-                Colors.blue,
               ),
               const SizedBox(height: 16),
-              _buildRuleCard(
-                '30%',
-                'Wants',
-                'Entertainment, dining out, shopping',
-                Colors.purple,
-              ),
-              const SizedBox(height: 16),
-              _buildRuleCard(
-                '20%',
-                'Savings',
-                'Savings, investments, debt repayment',
-                Colors.green,
-              ),
             ],
           ),
         );
@@ -372,53 +347,40 @@ class _BudgetingRulePage extends StatelessWidget {
   }
 
   Widget _buildRuleCard(
-      String percentage, String title, String description, Color color) {
+      String emoji, String title, String description, Color backgroundColor) {
     return Container(
-      padding: EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: color.withOpacity(0.5),
-          width: 1,
-        ),
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
         children: [
-          Container(
-            padding: EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Text(
-              percentage,
-              style: TextStyle(
-                color: color,
-                fontWeight: FontWeight.bold,
-                fontSize: 18,
-              ),
+          Text(
+            emoji,
+            style: const TextStyle(
+              fontSize: 32,
             ),
           ),
-          SizedBox(width: 16),
+          const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   title,
-                  style: TextStyle(
+                  style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
-                    fontSize: 16,
+                    fontSize: 24,
                   ),
                 ),
-                SizedBox(height: 4),
+                const SizedBox(height: 4),
                 Text(
                   description,
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 12,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
                   ),
                 ),
               ],
