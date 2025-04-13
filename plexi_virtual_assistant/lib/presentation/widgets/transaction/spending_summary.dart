@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:plexi_virtual_assistant/presentation/widgets/skeleton/skeleton_spending_summary.dart';
 import '../../../blocs/transaction/transaction_bloc.dart';
 import '../../../blocs/transaction/transaction_state.dart';
 import '../../../blocs/transaction/transaction_event.dart';
@@ -13,7 +14,7 @@ import '../../screens/transaction/transaction_onboarding_screen.dart';
 import '../common/transparent_card.dart';
 import '../../../utils/formatting_utils.dart';
 import './budget_pie_chart.dart';
-import '../skeleton/skeleton_spending_summary.dart';
+import '../skeleton/skeleton_calorie_summary.dart';
 
 // Global cache for monthly spending amount to persist across widget instances
 double _cachedMonthlyAmount = 0.0;
@@ -59,6 +60,17 @@ class _SpendingSummaryState extends State<SpendingSummary>
 
     // Load transaction data if not already loaded
     _loadData();
+
+    // Ensure we transition from skeleton after a reasonable timeout
+    Future.delayed(const Duration(seconds: 3), () {
+      if (mounted && _showSkeleton) {
+        print(
+            "SpendingSummary: Force transitioning from skeleton after timeout");
+        setState(() {
+          _showSkeleton = false;
+        });
+      }
+    });
   }
 
   // We don't need didPopNext since we're not using RouteObserver
@@ -173,9 +185,25 @@ class _SpendingSummaryState extends State<SpendingSummary>
               }
             },
           ),
+          BlocListener<PreferencesBloc, PreferencesState>(
+            listener: (context, state) {
+              if (state is PreferencesLoaded) {
+                // Check for preferences even without transaction data
+                _checkAndTransitionFromSkeleton();
+              }
+            },
+          ),
         ],
         child: const SkeletonSpendingSummary(),
       );
+    }
+
+    // After we're no longer showing the skeleton, check preferences first
+    final preferencesState = context.watch<PreferencesBloc>().state;
+    if (preferencesState is PreferencesLoaded &&
+        (preferencesState.preferences.monthlySalary == null ||
+            preferencesState.preferences.monthlySalary == 0)) {
+      return _buildOnboardingPrompt(context);
     }
 
     return BlocBuilder<TransactionBloc, TransactionState>(
@@ -277,6 +305,7 @@ class _SpendingSummaryState extends State<SpendingSummary>
     // Check if both transaction and analysis data are loaded
     final transactionState = _transactionBloc.state;
     final analysisState = _analysisBloc.state;
+    final preferencesState = context.read<PreferencesBloc>().state;
 
     // Transition if we have either:
     // 1. Both transaction and analysis data loaded
@@ -289,7 +318,15 @@ class _SpendingSummaryState extends State<SpendingSummary>
         _analysisBloc.cachedAnalysis != null ||
         _cachedAnalysis != null;
 
-    if (hasTransactionData && hasAnalysisData) {
+    bool hasPreferences = preferencesState is PreferencesLoaded;
+    bool hasBudget = hasPreferences &&
+        (preferencesState as PreferencesLoaded).preferences.monthlySalary !=
+            null &&
+        (preferencesState as PreferencesLoaded).preferences.monthlySalary! > 0;
+
+    // If we have a timeout or we have loaded enough data, transition from skeleton
+    if ((hasTransactionData && hasAnalysisData) ||
+        (!hasTransactionData && hasPreferences)) {
       setState(() {
         _showSkeleton = false;
       });
