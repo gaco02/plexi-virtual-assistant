@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../blocs/chat/chat_bloc.dart';
 import '../../blocs/chat/chat_event.dart';
 import '../../blocs/chat/chat_state.dart';
+import '../../data/models/chat_message.dart';
 import '../widgets/chat/chat_input.dart';
 import '../widgets/common/app_background.dart';
 import '../widgets/chat/chat_message_list.dart';

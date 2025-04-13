@@ -39,12 +39,38 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
       final userId = authState is AuthAuthenticated ? authState.user.uid : null;
 
       final messages = await chatRepository.getMessages(userId: userId);
+      print('Initial messages count: ${messages.length}'); // Debug print
+      if (messages.isNotEmpty) {
+        print(
+            'First message content: ${messages.first.content}'); // Debug print
+      }
+
+      // If there are no previous messages, add a welcome message from Plexi
+      if (messages.isEmpty) {
+        print(
+            'Adding welcome message because messages list is empty'); // Debug print
+        final welcomeMessage = ChatMessage(
+          id: 'welcome',
+          content:
+              "Hi, I'm Plexi and I will be your virtual assistant. You can chat with me or tell me how much you spent today or what food you ate.",
+          isUser: false,
+          timestamp: DateTime.now(),
+          userId: userId,
+        );
+
+        // Add welcome message to the list and save it to the repository
+        messages.add(welcomeMessage);
+        await chatRepository.addMessage(welcomeMessage);
+        print(
+            'Welcome message added, new messages count: ${messages.length}'); // Debug print
+      }
 
       emit(ChatMessageState(
         messages: messages,
         isAssistantTyping: false,
       ));
     } catch (e) {
+      print('Error loading chat history: $e'); // Debug print
       emit(ChatError('Failed to load chat history'));
     }
   }

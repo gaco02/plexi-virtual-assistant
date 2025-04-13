@@ -48,10 +48,10 @@ class ChatMessageBubble extends StatelessWidget {
   String _removeCalorieSummary(String text) {
     // Common patterns for calorie summaries in the text
     final patterns = [
-      // Pattern for "Today’s nutrition summary:" or "This week’s nutrition summary:"
+      // Pattern for "Today's nutrition summary:" or "This week's nutrition summary:"
       // Updated to handle both straight and curly apostrophes
       RegExp(
-          r"(Today(?:'s|’s)|This week(?:'s|’s)) nutrition summary:[\s\S]*?(Food breakdown:[\s\S]*?(?=\n\n|\Z)|\Z)",
+          r"(Today(?:'s|'s)|This week(?:'s|'s)) nutrition summary:[\s\S]*?(Food breakdown:[\s\S]*?(?=\n\n|\Z)|\Z)",
           caseSensitive: false),
 
       // Pattern for "Calorie Summary" sections
@@ -766,6 +766,11 @@ class ChatMessageBubble extends StatelessWidget {
 
   // Helper method to check if a message looks like a budget response
   bool _isBudgetResponse(String text) {
+    // First check if this is the welcome message
+    if (text.contains("Hi, I'm Plexi and I will be your virtual assistant")) {
+      return false;
+    }
+
     final String lowerText = text.toLowerCase();
 
     return lowerText.contains("you've spent") ||
@@ -842,7 +847,7 @@ class ChatMessageBubble extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: Colors.red.shade900,
+            color: Colors.blue.shade800,
             borderRadius: BorderRadius.circular(16),
           ),
           child: SelectableText(
@@ -851,7 +856,7 @@ class ChatMessageBubble extends StatelessWidget {
               color: Colors.white,
               fontSize: 16,
               height: 1.4,
-              fontFamily: 'Roboto', // a common fixed font
+              fontFamily: 'Roboto',
             ),
           ),
         ),
@@ -861,26 +866,32 @@ class ChatMessageBubble extends StatelessWidget {
       return Container(
         margin: const EdgeInsets.symmetric(vertical: 4),
         alignment: Alignment.centerLeft,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Only show the text response if it's not a query response or logging action
-            // or if we have both intents and the text is not empty
-            if (!hideText && formattedText.isNotEmpty)
-              SelectableText(
-                formattedText,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  height: 1.4,
-                  // No fixed fontFamily so emojis and special characters can fallback properly
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.grey.shade800,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Only show the text response if it's not a query response or logging action
+              // or if we have both intents and the text is not empty
+              if (!hideText && formattedText.isNotEmpty)
+                SelectableText(
+                  formattedText,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    height: 1.4,
+                  ),
                 ),
-              ),
-            // Display calorie info (blue box) if available
-            _buildCalorieInfo(),
-            // Display budget info (blue box) if available
-            _buildBudgetInfo(),
-          ],
+              // Display calorie info (blue box) if available
+              _buildCalorieInfo(),
+              // Display budget info (blue box) if available
+              _buildBudgetInfo(),
+            ],
+          ),
         ),
       );
     }
