@@ -115,12 +115,9 @@ class CalorieRepository {
               DateTime timestamp;
               if (entry['timestamp'] != null) {
                 timestamp = DateTime.parse(entry['timestamp']);
-                print(
-                    '🍎 [CalorieRepository] Parsed timestamp: ${timestamp.toString().split(' ')[0]}');
               } else {
                 timestamp =
                     today.add(Duration(hours: now.hour, minutes: now.minute));
-                print('🍎 [CalorieRepository] Using current time as timestamp');
               }
 
               // Parse numeric values safely
@@ -151,20 +148,13 @@ class CalorieRepository {
               );
 
               // Check if this is a March 28 entry
-              if (timestamp.month == 3 && timestamp.day == 28) {
-                print(
-                    '🍎 [CalorieRepository] Found March 28 entry: ${calorieEntry.foodItem}');
-              }
+              if (timestamp.month == 3 && timestamp.day == 28) {}
 
               newEntries.add(calorieEntry);
             } catch (e) {
-              print('🍎 [CalorieRepository] Error parsing entry: $e');
               // Continue to next entry
             }
           }
-
-          print(
-              '🍎 [CalorieRepository] Successfully parsed ${newEntries.length} entries from server');
 
           if (newEntries.isNotEmpty) {
             // Add new entries to the in-memory list
@@ -264,9 +254,6 @@ class CalorieRepository {
             'show me my daily calories', // Help the server determine the right query scope
       });
 
-      print(
-          '🍎 [CalorieRepository] Daily summary response: ${response != null ? 'Success' : 'Null'}');
-
       if (response != null) {
         if (response is Map && response.containsKey('success')) {}
 
@@ -303,9 +290,6 @@ class CalorieRepository {
             'show me my daily calories', // Help the server determine the right query scope
         'force_refresh': forceRefresh,
       });
-
-      print(
-          '🍎 [CalorieRepository] Daily summary response from server: ${summaryResponse != null ? 'Success' : 'Null'}');
 
       return summaryResponse;
     } catch (e) {
@@ -350,8 +334,6 @@ class CalorieRepository {
   // Helper method to process breakdown list from server response
   List<Map<String, dynamic>> _processBreakdownList(
       List<dynamic> breakdownItems) {
-    print('🍎 [CalorieRepository] Processing breakdown list: $breakdownItems');
-
     if (breakdownItems.isEmpty) return [];
 
     List<Map<String, dynamic>> result = [];
@@ -418,21 +400,13 @@ class CalorieRepository {
   Future<List<CalorieEntry>> getCalorieEntries(
       {bool forceRefresh = false}) async {
     try {
-      print(
-          '🍎 [CalorieRepository] getCalorieEntries called with forceRefresh: $forceRefresh');
-
       // Make sure entries are initialized
       await _initializeEntries();
 
       // If cache is valid and not forcing refresh, return cached entries
       if (_entries.isNotEmpty && _isCacheValid && !forceRefresh) {
-        print(
-            '🍎 [CalorieRepository] Using ${_entries.length} cached entries (cache age: ${DateTime.now().difference(_lastCacheUpdate!).inMinutes}m)');
         return List.from(_entries);
       }
-
-      print(
-          '🍎 [CalorieRepository] Cache invalid or force refresh requested, fetching fresh data');
 
       // If we have an API service, try to fetch from server first
       if (apiService != null) {
@@ -440,13 +414,8 @@ class CalorieRepository {
           // Get current user ID
           final userId = apiService?.getCurrentUserId();
           if (userId == null) {
-            print(
-                '🍎 [CalorieRepository] No user ID found, using local entries');
             return List.from(_entries);
           }
-
-          print(
-              '🍎 [CalorieRepository] Fetching entries from server for user: $userId');
 
           // Fetch entries from server using monthly period instead of 'all'
           final response = await apiService!.post('/calories/entries', {
@@ -456,50 +425,31 @@ class CalorieRepository {
                 forceRefresh, // Pass through the force refresh parameter
           });
 
-          print(
-              '🍎 [CalorieRepository] Server response received: ${response != null ? 'Success' : 'Null'}');
-
           if (response != null) {
             // Handle the response based on its structure
             if (response is Map && response['entries'] is List) {
               final List<dynamic> serverEntries = response['entries'];
-              print(
-                  '🍎 [CalorieRepository] Processing ${serverEntries.length} entries from server response map');
 
               // Process entries and add to in-memory list
               await _processServerEntries(serverEntries);
 
-              print(
-                  '🍎 [CalorieRepository] After processing, have ${_entries.length} entries');
               return List.from(_entries);
             } else if (response is List) {
-              print(
-                  '🍎 [CalorieRepository] Processing ${response.length} entries from server response list');
-
               // Process entries and add to in-memory list
               await _processServerEntries(response);
 
-              print(
-                  '🍎 [CalorieRepository] After processing, have ${_entries.length} entries');
               return List.from(_entries);
-            } else {
-              print(
-                  '🍎 [CalorieRepository] Unexpected server response format: ${response.runtimeType}');
-            }
+            } else {}
           }
         } catch (e) {
-          print(
-              '🍎 [CalorieRepository] Error fetching entries from server: $e');
           // Continue with local entries
         }
       }
 
       // Return the current entries if server fetch fails or is not available
-      print(
-          '🍎 [CalorieRepository] Returning ${_entries.length} local entries');
+
       return List.from(_entries);
     } catch (e) {
-      print('🍎 [CalorieRepository] Error in getCalorieEntries: $e');
       // Return empty list if anything fails
       return [];
     }
@@ -516,13 +466,10 @@ class CalorieRepository {
           DateTime timestamp;
           if (entry['timestamp'] != null) {
             timestamp = DateTime.parse(entry['timestamp']);
-            print(
-                '🍎 [CalorieRepository] Parsed timestamp: ${timestamp.toString().split(' ')[0]}');
           } else {
             final now = DateTime.now();
             timestamp =
                 DateTime(now.year, now.month, now.day, now.hour, now.minute);
-            print('🍎 [CalorieRepository] Using current time as timestamp');
           }
 
           // Parse numeric values safely using existing helper methods
@@ -551,9 +498,7 @@ class CalorieRepository {
           );
 
           newEntries.add(calorieEntry);
-        } catch (e) {
-          print('🍎 [CalorieRepository] Error processing entry: $e');
-        }
+        } catch (e) {}
       }
 
       if (newEntries.isNotEmpty) {
@@ -594,9 +539,6 @@ class CalorieRepository {
       // First try to add to the server if API service is available
       if (apiService != null) {
         try {
-          print(
-              '🍎 [CalorieRepository] Attempting to add entry to server: ${entry.foodItem}');
-
           // Format the timestamp in a more compatible format: YYYY-MM-DD HH:MM:SS
           final formattedTimestamp =
               "${entry.timestamp.year}-${entry.timestamp.month.toString().padLeft(2, '0')}-${entry.timestamp.day.toString().padLeft(2, '0')} "
@@ -615,14 +557,6 @@ class CalorieRepository {
             'timestamp': formattedTimestamp, // Use the formatted timestamp
           });
 
-          print('🍎 [CalorieRepository] Sent data: ${{
-            "food_item": entry.foodItem,
-            "calories": entry.calories.toString(),
-            "timestamp": formattedTimestamp
-          }}');
-
-          print('🍎 [CalorieRepository] Server response: $response');
-
           // Add to local storage regardless of server response
           // This ensures we have the entry even if server sync failed
           _entries.add(entry);
@@ -631,16 +565,13 @@ class CalorieRepository {
           // Try to refresh from server but don't fail if it doesn't work
           try {
             await _fetchDailyCaloriesFromServerVoid();
-          } catch (e) {
-            print('🍎 [CalorieRepository] Error refreshing data: $e');
-          }
+          } catch (e) {}
 
           // Update daily summary
           _updateDailySummary();
 
           return true;
         } catch (e) {
-          print('🍎 [CalorieRepository] Exception in server add: $e');
           // Continue with local storage even if server fails
           _entries.add(entry);
           await _saveEntries();
@@ -661,7 +592,6 @@ class CalorieRepository {
 
       return true;
     } catch (e) {
-      print('🍎 [CalorieRepository] Error adding calorie entry: $e');
       return false;
     }
   }
@@ -686,26 +616,19 @@ class CalorieRepository {
 
   /// Gets entries for a specific date
   Future<List<CalorieEntry>> getEntriesForDate(DateTime date) async {
-    print(
-        '🍎 [CalorieRepository] getEntriesForDate called for ${date.toString().split(' ')[0]}');
     final allEntries = await getCalorieEntries();
     final dateEntries = allEntries.where((entry) {
       return entry.timestamp.year == date.year &&
           entry.timestamp.month == date.month &&
           entry.timestamp.day == date.day;
     }).toList();
-    print(
-        '🍎 [CalorieRepository] Found ${dateEntries.length} entries for ${date.toString().split(' ')[0]}');
+
     // If looking for March 28 specifically, print more details
     if (date.month == 3 && date.day == 28) {
-      print('🍎 [CalorieRepository] Detailed check for March 28:');
-      print(
-          '🍎 [CalorieRepository] Total entries in memory: ${allEntries.length}');
       // Check for any entries in March
       final marchEntries =
           allEntries.where((entry) => entry.timestamp.month == 3).toList();
-      print(
-          '🍎 [CalorieRepository] Total March entries: ${marchEntries.length}');
+
       if (marchEntries.isNotEmpty) {
         // Group by day
         final Map<int, int> entriesByDay = {};
@@ -713,7 +636,6 @@ class CalorieRepository {
           final day = entry.timestamp.day;
           entriesByDay[day] = (entriesByDay[day] ?? 0) + 1;
         }
-        print('🍎 [CalorieRepository] March entries by day: $entriesByDay');
       }
     }
     return dateEntries;
@@ -737,7 +659,6 @@ class CalorieRepository {
       final result = await _getDailyCaloriesImpl(forceRefresh: forceRefresh);
       return result;
     } catch (e) {
-      print('❌ [CalorieRepository] Error getting daily calories: $e');
       return {
         'totalCalories': 0,
         'totalCarbs': 0.0,
@@ -761,9 +682,6 @@ class CalorieRepository {
         final summaryResponse =
             await _fetchDailyCaloriesFromServer(forceRefresh: forceRefresh);
         if (summaryResponse != null) {
-          print(
-              '🍎 [CalorieRepository] Processing server response: $summaryResponse');
-
           // Handle the case where total_calories is directly in the response (not in calorie_info)
           if (summaryResponse['total_calories'] != null ||
               summaryResponse['totalCalories'] != null) {
@@ -803,23 +721,18 @@ class CalorieRepository {
               'breakdown': breakdown,
             };
 
-            print(
-                '🍎 [CalorieRepository] Using direct server response: $result');
             return result;
           }
 
           // Check if we have calorie_info in the response
           if (summaryResponse['calorie_info'] != null) {
             final calorieInfo = summaryResponse['calorie_info'];
-            print('🍎 [CalorieRepository] Found calorie_info: $calorieInfo');
 
             // Parse total calories
             final int totalCalories = _parseToInt(
                 calorieInfo['totalCalories'] ??
                     calorieInfo['total_calories'] ??
                     0);
-            print(
-                '🍎 [CalorieRepository] Parsed totalCalories: $totalCalories');
 
             // Always process the data from the server, even if totalCalories is 0
             {
@@ -833,18 +746,12 @@ class CalorieRepository {
               final double totalFat = _parseToDouble(
                   calorieInfo['totalFat'] ?? calorieInfo['total_fat'] ?? 0);
 
-              print(
-                  '🍎 [CalorieRepository] Parsed macros - carbs: $totalCarbs, protein: $totalProtein, fat: $totalFat');
-
               // Get breakdown from items - handle both 'items' and 'breakdown' keys
               final List<Map<String, dynamic>> breakdown =
                   calorieInfo['breakdown'] != null &&
                           calorieInfo['breakdown'] is List
                       ? _processBreakdownList(calorieInfo['breakdown'])
                       : _getBreakdownFromItems(calorieInfo['items'] ?? {});
-
-              print(
-                  '🍎 [CalorieRepository] Processed breakdown with ${breakdown.length} items');
 
               final result = {
                 'totalCalories': totalCalories,
@@ -858,13 +765,9 @@ class CalorieRepository {
           }
         }
       } catch (e) {
-        print('🍎 [CalorieRepository] Error getting data from server: $e');
         // Continue with local data if server fails
       }
     }
-
-    print(
-        '🍎 [CalorieRepository] Server data unavailable, calculating from local entries');
 
     // Fall back to local calculation if server fails or is not available
     final entries = await getCalorieEntries(forceRefresh: forceRefresh);
@@ -883,9 +786,6 @@ class CalorieRepository {
       final isToday = entryDate.isAtSameMomentAs(today);
       return isToday;
     }).toList();
-
-    print(
-        '🍎 [CalorieRepository] Found ${todayEntries.length} local entries for today');
 
     if (todayEntries.isNotEmpty) {
       // Calculate totals
@@ -937,11 +837,8 @@ class CalorieRepository {
         'breakdown': breakdownList,
       };
 
-      print(
-          '🍎 [CalorieRepository] Calculated from local: totalCalories=$totalCalories');
       return result;
     } else {
-      print('🍎 [CalorieRepository] No entries for today, returning zeros');
       return {
         'totalCalories': 0,
         'totalCarbs': 0.0,
@@ -986,9 +883,6 @@ class CalorieRepository {
         'message':
             'show me my daily calories', // Help the server determine the right query scope
       });
-
-      print(
-          '🍎 [CalorieRepository] Daily summary response: ${summaryResponse != null ? 'Success' : 'Null'}');
 
       bool hasSummaryData = false;
       int summaryTotalCalories = 0;
@@ -1121,9 +1015,6 @@ class CalorieRepository {
             'show me my daily calories', // Help the server determine the right query scope
       });
 
-      print(
-          '🍎 [CalorieRepository] Daily summary response (fallback): ${summaryResponse != null ? 'Success' : 'Null'}');
-
       if (summaryResponse != null) {
         if (summaryResponse['success'] == true &&
             summaryResponse['summary'] != null) {
@@ -1169,11 +1060,8 @@ class CalorieRepository {
         // Get current user ID from Firebase Auth
         final userId = apiService!.getCurrentUserId();
         if (userId == null) {
-          print('🍎 [CalorieRepository] Weekly: No user ID available');
           throw Exception('No user ID available');
         }
-
-        print('🍎 [CalorieRepository] Weekly: Getting data for user: $userId');
 
         // Get entries for the week with force refresh
         final entriesResponse = await apiService!.post('/calories/entries', {
@@ -1184,32 +1072,20 @@ class CalorieRepository {
               'show me my weekly calories', // Help server understand the context
         });
 
-        print(
-            '🍎 [CalorieRepository] Weekly: Server response: $entriesResponse');
-
         List<dynamic> serverEntries = [];
         bool hasValidEntries = false;
 
         if (entriesResponse != null && entriesResponse['success'] == true) {
           serverEntries = entriesResponse['entries'] ?? [];
-          print(
-              '🍎 [CalorieRepository] Weekly: Received ${serverEntries.length} entries');
 
           // Debug: Print timestamps of entries to verify date range
           if (serverEntries.isNotEmpty) {
-            print('🍎 [CalorieRepository] First few entries timestamps:');
             for (var i = 0; i < min(5, serverEntries.length); i++) {
               final entry = serverEntries[i];
               if (entry['timestamp'] != null) {
-                print(
-                    '🍎 [CalorieRepository] Entry $i timestamp: ${entry['timestamp']}');
                 try {
                   final date = DateTime.parse(entry['timestamp']);
-                  print(
-                      '🍎 [CalorieRepository] Parsed date: ${date.year}-${date.month}-${date.day}, Weekday: ${date.weekday}');
-                } catch (e) {
-                  print('🍎 [CalorieRepository] Error parsing date: $e');
-                }
+                } catch (e) {}
               }
             }
 
@@ -1243,8 +1119,6 @@ class CalorieRepository {
                 }
               }
             }
-            print(
-                '🍎 [CalorieRepository] Calories by day of week: $caloriesByDay');
           }
 
           if (serverEntries.isNotEmpty) {
@@ -1315,10 +1189,7 @@ class CalorieRepository {
               'entries': serverEntries,
             };
           }
-        } else {
-          print(
-              '🍎 [CalorieRepository] No entries found in server response: $entriesResponse');
-        }
+        } else {}
 
         // If we don't have valid entries, try to get summary
         final summaryResponse = await apiService!.post('/calories/summary', {
@@ -1328,9 +1199,6 @@ class CalorieRepository {
               'show me my weekly calories by day', // More specific for daily breakdown
           'force_refresh': true, // Add force_refresh parameter
         });
-
-        print(
-            '🍎 [CalorieRepository] Weekly summary response: ${summaryResponse != null ? 'Success' : 'Null'}');
 
         if (summaryResponse != null && summaryResponse['success'] == true) {
           final summary = summaryResponse['summary'] ??
@@ -1368,8 +1236,6 @@ class CalorieRepository {
             if (retryEntriesResponse != null &&
                 retryEntriesResponse['success'] == true) {
               serverEntries = retryEntriesResponse['entries'] ?? [];
-              print(
-                  '🍎 [CalorieRepository] Retrieved ${serverEntries.length} entries on retry');
             }
           }
 
@@ -1381,17 +1247,9 @@ class CalorieRepository {
             'breakdown': breakdownList,
             'entries': serverEntries,
           };
-        } else {
-          print(
-              '🍎 [CalorieRepository] Failed to get weekly summary: $summaryResponse');
-        }
-      } catch (e) {
-        print('🍎 [CalorieRepository] Error getting weekly calories: $e');
-      }
-    } else {
-      print(
-          '🍎 [CalorieRepository] No API service available for weekly calories');
-    }
+        } else {}
+      } catch (e) {}
+    } else {}
 
     // If we reach here, we couldn't get data from the server
     // Calculate from local entries
@@ -1403,7 +1261,6 @@ class CalorieRepository {
     final startOfWeek = now.subtract(Duration(days: currentWeekday - 1));
     final startOfWeekMidnight =
         DateTime(startOfWeek.year, startOfWeek.month, startOfWeek.day);
-    print('🍎 [CalorieRepository] Start of week: $startOfWeekMidnight');
 
     // Filter entries for current week only
     final weeklyEntries = _entries.where((entry) {
@@ -1412,9 +1269,6 @@ class CalorieRepository {
           entry.timestamp
               .isBefore(startOfWeekMidnight.add(const Duration(days: 7)));
     }).toList();
-
-    print(
-        '🍎 [CalorieRepository] Found ${weeklyEntries.length} local entries for current week');
 
     int totalCalories = 0;
     double totalCarbs = 0;
@@ -1577,9 +1431,6 @@ class CalorieRepository {
           'message':
               'show me my monthly calories', // Help the server determine the right query scope
         });
-
-        print(
-            '🍎 [CalorieRepository] Monthly summary response: ${summaryResponse != null ? 'Success' : 'Null'}');
 
         if (summaryResponse != null && summaryResponse['success'] == true) {
           final summary = summaryResponse['summary'] ??

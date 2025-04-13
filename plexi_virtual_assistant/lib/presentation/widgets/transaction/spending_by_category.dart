@@ -80,11 +80,8 @@ class _SpendingByCategoryState extends State<SpendingByCategory> {
 
     // If we have a cached result and the key matches, return it
     if (_cachedBreakdown != null && _cacheKey == newCacheKey) {
-      print(' [SpendingByCategory] Using cached breakdown');
       return _cachedBreakdown!;
     }
-
-    print(' [SpendingByCategory] Building new breakdown');
 
     // Sort categories by amount (descending)
     final sortedCategories = categoryTotals.keys.toList()
@@ -97,8 +94,6 @@ class _SpendingByCategoryState extends State<SpendingByCategory> {
         widget.monthlyBudget != null && widget.monthlyBudget! > 0
             ? widget.monthlyBudget! * 0.5 // Use 50% of monthly budget as max
             : totalAmount;
-
-    print(' [SpendingByCategory] Using max progress value: $maxProgressValue');
 
     // Add each category
     for (final category in sortedCategories) {
@@ -183,9 +178,6 @@ class _SpendingByCategoryState extends State<SpendingByCategory> {
 
   @override
   Widget build(BuildContext context) {
-    print(
-        ' [SpendingByCategory] Building with ${widget.categoryTotals.length} categories, total: ${widget.totalAmount}');
-
     // If there are no categories, show a message
     if (widget.categoryTotals.isEmpty) {
       return const TransparentCard(

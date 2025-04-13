@@ -149,10 +149,7 @@ class TransactionBloc extends Bloc<TransactionEvent, TransactionState>
         monthlyAmount: monthlyTotal,
         period: 'Month', // Set period to Month to ensure monthly view
       ));
-
-      print(' [TransactionBloc] Transaction added and monthly data loaded');
     } catch (e) {
-      print(' [TransactionBloc] Error adding transaction: $e');
       emit(const TransactionError('Failed to add transaction'));
     }
   }

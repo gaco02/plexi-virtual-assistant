@@ -21,16 +21,12 @@ class CalorieBloc extends Bloc<CalorieEvent, CalorieState>
   })  : _repository = repository,
         _userPreferencesRepository = userPreferencesRepository,
         super(CalorieInitial()) {
-    print('🍎 [CalorieBloc] Initializing and registering event handlers');
-
     // First register all event handlers
     on<LoadDailyCalories>(_onLoadDaily);
     on<LoadWeeklyCalories>((event, emit) {
-      print('🍎 [CalorieBloc] Weekly: Event handler triggered');
       return _onLoadWeekly(event, emit);
     });
     on<LoadMonthlyCalories>((event, emit) {
-      print('🍎 [CalorieBloc] Monthly: Event handler triggered');
       return _onLoadMonthly(event, emit);
     });
     on<UpdateCaloriesFromChat>(_onUpdateCaloriesFromChat);
@@ -38,8 +34,6 @@ class CalorieBloc extends Bloc<CalorieEvent, CalorieState>
     on<UpdateCalorieGoal>(_onUpdateCalorieGoal);
     on<EditCalorieEntry>(_onEditCalorieEntry);
     on<DeleteCalorieEntry>(_onDeleteCalorieEntry);
-
-    print('🍎 [CalorieBloc] Event handlers registered');
 
     // This reduces the number of checks by 15x
     _refreshTimer = Timer.periodic(const Duration(minutes: 15), (_) {
@@ -115,12 +109,8 @@ class CalorieBloc extends Bloc<CalorieEvent, CalorieState>
       if (!dataChanged &&
           state.status == CalorieStatus.loaded &&
           !event.forceRefresh) {
-        print("🚫 [CalorieBloc] No changes in calorie data, skipping emit");
         return;
       }
-
-      print(
-          "🔄 [CalorieBloc] Data changed or force refresh, updating state from ${state.totalCalories} to $totalCalories calories");
 
       // Emit loaded state with the data
       emit(state.copyWith(
@@ -392,9 +382,6 @@ class CalorieBloc extends Bloc<CalorieEvent, CalorieState>
   int _parseToInt(dynamic value) {
     if (value == null) return 0;
 
-    print(
-        '🍎 [CalorieBloc] Parsing to int: $value (type: ${value.runtimeType})');
-
     if (value is int) return value;
     if (value is double) return value.round();
     if (value is String) {
@@ -406,16 +393,12 @@ class CalorieBloc extends Bloc<CalorieEvent, CalorieState>
       if (parsedDouble != null) return parsedDouble.round();
     }
 
-    print('🍎 [CalorieBloc] Failed to parse $value to int, returning 0');
     return 0;
   }
 
   // Helper method to parse to double
   double _parseToDouble(dynamic value) {
     if (value == null) return 0.0;
-
-    print(
-        '🍎 [CalorieBloc] Parsing to double: $value (type: ${value.runtimeType})');
 
     if (value is double) return value;
     if (value is int) return value.toDouble();
@@ -424,7 +407,6 @@ class CalorieBloc extends Bloc<CalorieEvent, CalorieState>
       if (parsed != null) return parsed;
     }
 
-    print('🍎 [CalorieBloc] Failed to parse $value to double, returning 0.0');
     return 0.0;
   }
 
@@ -434,41 +416,28 @@ class CalorieBloc extends Bloc<CalorieEvent, CalorieState>
       // Emit loading state to show the loading indicator
       emit(state.copyWith(status: CalorieStatus.loading));
 
-      print('🍎 [CalorieBloc] Fetching weekly calories...');
-
       // Fetch weekly calories from the repository with force refresh to ensure fresh data
       final weeklyData =
           await _repository.getWeeklyCalories(forceRefresh: true);
 
       // Debug: Print the raw weekly data structure
-      print('🍎 [CalorieBloc] DEBUG - Raw weekly data structure:');
+
       weeklyData.forEach((key, value) {
         if (key == 'entries') {
-          print(
-              '🍎 [CalorieBloc] DEBUG - entries count: ${(value as List).length}');
-        } else {
-          print('🍎 [CalorieBloc] DEBUG - $key: $value');
-        }
+        } else {}
       });
 
       // Check if the data contains entries
       if (weeklyData['entries'] != null && weeklyData['entries'] is List) {
         final List<dynamic> entries = weeklyData['entries'];
-        print('🍎 [CalorieBloc] Received ${entries.length} weekly entries');
 
         if (entries.isNotEmpty) {
           // Debug: Print the first entry structure
-          print('🍎 [CalorieBloc] DEBUG - First entry structure:');
+
           final firstEntry = entries.first;
           if (firstEntry is Map) {
-            firstEntry.forEach((key, value) {
-              print(
-                  '🍎 [CalorieBloc] DEBUG - $key: $value (${value.runtimeType})');
-            });
-          } else {
-            print(
-                '🍎 [CalorieBloc] DEBUG - First entry is not a Map: ${firstEntry.runtimeType}');
-          }
+            firstEntry.forEach((key, value) {});
+          } else {}
         }
 
         // Convert the entries to CalorieEntry objects
@@ -477,20 +446,15 @@ class CalorieBloc extends Bloc<CalorieEvent, CalorieState>
           try {
             if (entry['timestamp'] != null) {
               timestamp = DateTime.parse(entry['timestamp'].toString());
-              print(
-                  '🍎 [CalorieBloc] DEBUG - Parsed timestamp: $timestamp (weekday: ${timestamp.weekday})');
             } else {
               // If no timestamp, use current date with a random hour to distribute them
               final now = DateTime.now();
               timestamp =
                   DateTime(now.year, now.month, now.day, now.hour, now.minute);
-              print(
-                  '🍎 [CalorieBloc] DEBUG - No timestamp found, using current time');
             }
           } catch (e) {
             // If parsing fails, use current time as fallback
             timestamp = DateTime.now();
-            print('🍎 [CalorieBloc] Error parsing timestamp: $e');
           }
 
           return CalorieEntry(
@@ -520,8 +484,6 @@ class CalorieBloc extends Bloc<CalorieEvent, CalorieState>
           entriesByDay[weekday]?.add(entry);
         }
 
-        // Print entries by day of week
-        print('🍎 [CalorieBloc] DEBUG - Entries by day of week:');
         final List<String> weekdays = [
           'Monday',
           'Tuesday',
@@ -537,19 +499,15 @@ class CalorieBloc extends Bloc<CalorieEvent, CalorieState>
           for (var entry in entries) {
             totalCalories += entry.calories;
           }
-          print(
-              '🍎 [CalorieBloc] DEBUG - ${weekdays[i - 1]}: ${entries.length} entries, $totalCalories calories');
         }
 
         // Emit the updated state with the weekly entries
-        print(
-            '🍎 [CalorieBloc] Emitting ${calorieEntries.length} entries to UI');
+
         emit(state.copyWith(
           status: CalorieStatus.loaded,
           entries: calorieEntries,
         ));
       } else {
-        print('🍎 [CalorieBloc] No entries found in weekly data');
         // Emit an empty state if no entries are found
         emit(state.copyWith(
           status: CalorieStatus.loaded,
@@ -557,7 +515,6 @@ class CalorieBloc extends Bloc<CalorieEvent, CalorieState>
         ));
       }
     } catch (e) {
-      print('🍎 [CalorieBloc] Error fetching weekly calories: $e');
       // Emit an error state if fetching fails
       emit(state.copyWith(
         status: CalorieStatus.error,
@@ -573,16 +530,12 @@ class CalorieBloc extends Bloc<CalorieEvent, CalorieState>
   ) async {
     try {
       emit(state.copyWith(status: CalorieStatus.loading));
-      print('🍎 [CalorieBloc] Weekly: Loading weekly calories...');
 
       final weeklyData =
           await _repository.getWeeklyCalories(forceRefresh: true);
-      print(
-          '🍎 [CalorieBloc] Weekly: Received data from repository: $weeklyData');
 
       if (weeklyData['entries'] != null && weeklyData['entries'] is List) {
         final List<dynamic> entries = weeklyData['entries'];
-        print('🍎 [CalorieBloc] Weekly: Processing ${entries.length} entries');
 
         final List<CalorieEntry> calorieEntries = entries.map((entry) {
           DateTime timestamp;
@@ -590,11 +543,8 @@ class CalorieBloc extends Bloc<CalorieEvent, CalorieState>
             timestamp = entry['timestamp'] != null
                 ? DateTime.parse(entry['timestamp'].toString())
                 : DateTime.now();
-            print(
-                '🍎 [CalorieBloc] Weekly: Parsed timestamp for entry: ${timestamp.toString()}');
           } catch (e) {
             timestamp = DateTime.now();
-            print('🍎 [CalorieBloc] Weekly: Error parsing timestamp: $e');
           }
 
           return CalorieEntry(
@@ -613,9 +563,6 @@ class CalorieBloc extends Bloc<CalorieEvent, CalorieState>
           );
         }).toList();
 
-        print(
-            '🍎 [CalorieBloc] Weekly: Created ${calorieEntries.length} CalorieEntry objects');
-
         emit(state.copyWith(
           status: CalorieStatus.loaded,
           entries: calorieEntries,
@@ -624,16 +571,13 @@ class CalorieBloc extends Bloc<CalorieEvent, CalorieState>
           totalProtein: _parseToDouble(weeklyData['total_protein']),
           totalFat: _parseToDouble(weeklyData['total_fat']),
         ));
-        print('🍎 [CalorieBloc] Weekly: State updated with weekly data');
       } else {
-        print('🍎 [CalorieBloc] Weekly: No entries found in weekly data');
         emit(state.copyWith(
           status: CalorieStatus.loaded,
           entries: [],
         ));
       }
     } catch (e) {
-      print('🍎 [CalorieBloc] Weekly: Error loading weekly calories: $e');
       emit(state.copyWith(
         status: CalorieStatus.error,
         errorMessage: e.toString(),
@@ -647,16 +591,12 @@ class CalorieBloc extends Bloc<CalorieEvent, CalorieState>
   ) async {
     try {
       emit(state.copyWith(status: CalorieStatus.loading));
-      print('🍎 [CalorieBloc] Monthly: Loading monthly calories...');
 
       final monthlyData =
           await _repository.getMonthlyCalories(forceRefresh: true);
-      print(
-          '🍎 [CalorieBloc] Monthly: Received data from repository: $monthlyData');
 
       if (monthlyData['entries'] != null && monthlyData['entries'] is List) {
         final List<dynamic> entries = monthlyData['entries'];
-        print('🍎 [CalorieBloc] Monthly: Processing ${entries.length} entries');
 
         final List<CalorieEntry> calorieEntries = entries.map((entry) {
           DateTime timestamp;
@@ -664,11 +604,8 @@ class CalorieBloc extends Bloc<CalorieEvent, CalorieState>
             timestamp = entry['timestamp'] != null
                 ? DateTime.parse(entry['timestamp'].toString())
                 : DateTime.now();
-            print(
-                '🍎 [CalorieBloc] Monthly: Parsed timestamp for entry: ${timestamp.toString()}');
           } catch (e) {
             timestamp = DateTime.now();
-            print('🍎 [CalorieBloc] Monthly: Error parsing timestamp: $e');
           }
 
           return CalorieEntry(
@@ -687,9 +624,6 @@ class CalorieBloc extends Bloc<CalorieEvent, CalorieState>
           );
         }).toList();
 
-        print(
-            '🍎 [CalorieBloc] Monthly: Created ${calorieEntries.length} CalorieEntry objects');
-
         // Sort entries by date
         calorieEntries.sort((a, b) => a.timestamp.compareTo(b.timestamp));
 
@@ -702,11 +636,8 @@ class CalorieBloc extends Bloc<CalorieEvent, CalorieState>
         }
 
         // Print daily totals for debugging
-        print('🍎 [CalorieBloc] Monthly: Daily totals:');
-        dailyTotals.forEach((date, calories) {
-          print(
-              '🍎 [CalorieBloc] ${date.month}/${date.day}: $calories calories');
-        });
+
+        dailyTotals.forEach((date, calories) {});
 
         emit(state.copyWith(
           status: CalorieStatus.loaded,
@@ -716,16 +647,13 @@ class CalorieBloc extends Bloc<CalorieEvent, CalorieState>
           totalProtein: _parseToDouble(monthlyData['total_protein']),
           totalFat: _parseToDouble(monthlyData['total_fat']),
         ));
-        print('🍎 [CalorieBloc] Monthly: State updated with monthly data');
       } else {
-        print('🍎 [CalorieBloc] Monthly: No entries found in monthly data');
         emit(state.copyWith(
           status: CalorieStatus.loaded,
           entries: [],
         ));
       }
     } catch (e) {
-      print('🍎 [CalorieBloc] Monthly: Error loading monthly calories: $e');
       emit(state.copyWith(
         status: CalorieStatus.error,
         errorMessage: e.toString(),

@@ -40,7 +40,6 @@ class _CalorieSummaryState extends State<CalorieSummary> {
 
     // Check if data is already loaded to avoid showing skeleton unnecessarily
     if (_calorieBloc.state.status == CalorieStatus.loaded) {
-      print("CalorieSummary: Using cached data, skipping skeleton");
       _cachedTotalCalories = _calorieBloc.state.totalCalories;
       _showSkeleton = false;
 
@@ -55,8 +54,6 @@ class _CalorieSummaryState extends State<CalorieSummary> {
     // Ensure we transition from skeleton after a reasonable timeout
     Future.delayed(Duration(seconds: 3), () {
       if (mounted && _showSkeleton) {
-        print(
-            "CalorieSummary: Force transitioning from skeleton after timeout");
         setState(() {
           _showSkeleton = false;
         });
@@ -67,17 +64,12 @@ class _CalorieSummaryState extends State<CalorieSummary> {
   void _checkAndTransitionFromSkeleton() {
     // Only transition if we're still showing skeleton and have valid data
     if (_showSkeleton && mounted) {
-      print("CalorieSummary: Checking if we can transition from skeleton");
-
       // Check if we have all the data we need to show the real UI
       final calorieState = _calorieBloc.state;
 
       bool hasCalorieData = calorieState.status == CalorieStatus.loaded;
-      print(
-          "CalorieSummary: hasCalorieData=$hasCalorieData, status=${calorieState.status}");
 
       if (hasCalorieData) {
-        print("CalorieSummary: Transitioning from skeleton to real UI");
         setState(() {
           _showSkeleton = false;
         });

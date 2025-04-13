@@ -64,8 +64,6 @@ class _SpendingSummaryState extends State<SpendingSummary>
     // Ensure we transition from skeleton after a reasonable timeout
     Future.delayed(const Duration(seconds: 3), () {
       if (mounted && _showSkeleton) {
-        print(
-            "SpendingSummary: Force transitioning from skeleton after timeout");
         setState(() {
           _showSkeleton = false;
         });
@@ -79,18 +77,11 @@ class _SpendingSummaryState extends State<SpendingSummary>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_mounted) return;
 
-      print("SpendingSummary: Post frame callback - loading transactions");
-
       // Use a flag to track if we've already started loading
       if (_isLoadingStarted) {
-        print(
-            ' [SpendingSummary] Already started loading data, skipping redundant requests');
-
         // Even if we're already loading, check if we can transition from skeleton
         // This handles the case where we navigate back to this screen
         if (_showSkeleton && _cachedMonthlyAmount > 0) {
-          print(
-              ' [SpendingSummary] Using cached data to transition from skeleton');
           setState(() {
             _showSkeleton = false;
           });
@@ -119,10 +110,8 @@ class _SpendingSummaryState extends State<SpendingSummary>
             if (!_mounted) return;
             if (_analysisBloc.cachedAnalysis == null &&
                 _cachedAnalysis == null) {
-              print(' [SpendingSummary] Loading analysis data');
               _analysisBloc.add(const LoadTransactionAnalysis());
             } else {
-              print(' [SpendingSummary] Using cached analysis data');
               // If we already have cached analysis data, we can show the UI
               if (_showSkeleton) {
                 setState(() {
@@ -145,7 +134,6 @@ class _SpendingSummaryState extends State<SpendingSummary>
   @override
   Widget build(BuildContext context) {
     super.build(context); // Required for AutomaticKeepAliveClientMixin
-    print("SpendingSummary: Building widget");
 
     // Show skeleton immediately on first build
     if (_showSkeleton) {
@@ -156,18 +144,15 @@ class _SpendingSummaryState extends State<SpendingSummary>
             listener: (context, state) {
               // When transaction data is loaded, check if we can transition
               if (state is TransactionsLoaded) {
-                print("SpendingSummary: Transaction data loaded");
                 // Cache the monthly amount for future use
                 _cachedMonthlyAmount = state.monthlyAmount;
                 _cachedTodayAmount = state.todayAmount;
                 _checkAndTransitionFromSkeleton();
               } else if (state is MonthlySummaryLoaded) {
-                print("SpendingSummary: Monthly summary loaded");
                 // Cache the monthly amount for future use
                 _cachedMonthlyAmount = state.totalAmount;
                 _checkAndTransitionFromSkeleton();
               } else if (state is DailySummaryLoaded) {
-                print("SpendingSummary: Daily summary loaded");
                 // Cache the daily amount for future use
                 _cachedTodayAmount = state.totalAmount;
                 _checkAndTransitionFromSkeleton();
@@ -178,7 +163,6 @@ class _SpendingSummaryState extends State<SpendingSummary>
             listener: (context, state) {
               // When analysis data is loaded, check if we can transition
               if (state is TransactionAnalysisLoaded) {
-                print("SpendingSummary: Analysis data loaded");
                 // Cache the analysis for future use
                 _cachedAnalysis = state.analysis;
                 _checkAndTransitionFromSkeleton();
@@ -236,9 +220,6 @@ class _SpendingSummaryState extends State<SpendingSummary>
             return previous.runtimeType != current.runtimeType;
           },
           builder: (context, analysisState) {
-            print(
-                "SpendingSummary: TransactionAnalysisBloc state=$analysisState");
-
             // If we're still in the initial loading state, show the skeleton UI
             if ((state is TransactionInitial || state is TransactionLoading) &&
                 (analysisState is TransactionAnalysisInitial ||
@@ -345,18 +326,13 @@ class _SpendingSummaryState extends State<SpendingSummary>
 
     // Use actual analysis data if available
     if (analysis != null) {
-      print(
-          "SpendingSummary: Using analysis data - needs=${analysis.actual.needs}, wants=${analysis.actual.wants}, savings=${analysis.actual.savings}");
       needsActual = analysis.actual.needs;
       wantsActual = analysis.actual.wants;
       savingsActual = analysis.actual.savings;
       needsTarget = analysis.ideal.needs;
       wantsTarget = analysis.ideal.wants;
       savingsTarget = analysis.ideal.savings;
-    } else {
-      print(
-          "SpendingSummary: No analysis data available, using default values");
-    }
+    } else {}
 
     return TransparentCard(
       onTap: widget.isInTransactionDetailsScreen
@@ -387,13 +363,8 @@ class _SpendingSummaryState extends State<SpendingSummary>
 
                   // Only reload analysis data if it's not already cached
                   if (_analysisBloc.cachedAnalysis == null) {
-                    print(
-                        ' [SpendingSummary] No cached analysis data after navigation, requesting load');
                     _analysisBloc.add(const LoadTransactionAnalysis());
-                  } else {
-                    print(
-                        ' [SpendingSummary] Using cached analysis data after navigation, skipping refresh');
-                  }
+                  } else {}
                 });
               } else {
                 // User is missing necessary preferences, navigate to onboarding

@@ -22,7 +22,6 @@ class TransactionQueryRepository {
           transactions.add(Transaction.fromJson(tx));
         }
       } catch (e) {
-        print('⚠️ [TransactionQueryRepository] Error parsing transaction: $e');
         // Continue with next transaction
       }
     }
@@ -42,8 +41,6 @@ class TransactionQueryRepository {
 
       // Check if request is already in flight
       if (_cache.isRequestInFlight(cacheKey)) {
-        print(
-            '⏳ [TransactionQueryRepository] Request for daily transactions already in flight');
         // We can't return the future directly anymore, so we need to wait for it to complete
         await Future.doWhile(() async {
           await Future.delayed(const Duration(milliseconds: 100));
@@ -107,7 +104,6 @@ class TransactionQueryRepository {
 
       return transactions;
     } catch (e) {
-      print('❌ [TransactionQueryRepository] Error getting daily transactions: $e');
       final cacheKey = 'daily_transactions';
       _cache.completeRequestWithError(cacheKey, e);
       return []; // Return empty list on error
@@ -115,15 +111,11 @@ class TransactionQueryRepository {
   }
 
   /// Get monthly transactions for the current user
-  Future<List<Transaction>> getMonthlyTransactions({bool forceRefresh = false}) async {
+  Future<List<Transaction>> getMonthlyTransactions(
+      {bool forceRefresh = false}) async {
     try {
-      print(
-          '📊 [TransactionQueryRepository] Getting monthly transactions (forceRefresh: $forceRefresh)');
-
       // If forcing refresh, bypass cache and get fresh data
       if (forceRefresh) {
-        print(
-            '🔄 [TransactionQueryRepository] Forcing refresh of monthly transactions');
         final List<Transaction> transactions =
             await getTransactionsByPeriod('Month', forceRefresh: true);
 
@@ -133,14 +125,14 @@ class TransactionQueryRepository {
       }
 
       // Check cache first if not forcing refresh
-      final cachedData = await _cache.get<List<Transaction>>('monthly_transactions');
+      final cachedData =
+          await _cache.get<List<Transaction>>('monthly_transactions');
       if (cachedData != null) {
-        print('💾 [TransactionQueryRepository] Using cached monthly transactions');
         return cachedData;
       }
 
       // Get fresh data
-      print('🔄 [TransactionQueryRepository] Getting fresh monthly transactions');
+
       final List<Transaction> transactions =
           await getTransactionsByPeriod('Month', forceRefresh: false);
 
@@ -148,7 +140,6 @@ class TransactionQueryRepository {
       _cache.set('monthly_transactions', transactions);
       return transactions;
     } catch (e) {
-      print('❌ [TransactionQueryRepository] Error getting monthly transactions: $e');
       return [];
     }
   }
@@ -174,8 +165,6 @@ class TransactionQueryRepository {
 
       // Check if request is already in flight
       if (_cache.isRequestInFlight(cacheKey)) {
-        print(
-            '⏳ [TransactionQueryRepository] Request for transactions by period already in flight');
         // We can't return the future directly anymore, so we need to wait for it to complete
         await Future.doWhile(() async {
           await Future.delayed(const Duration(milliseconds: 100));
@@ -240,8 +229,6 @@ class TransactionQueryRepository {
 
       return transactions;
     } catch (e) {
-      print(
-          '❌ [TransactionQueryRepository] Error getting transactions by period: $e');
       final cacheKey = 'transactions_${period.toLowerCase()}';
       _cache.completeRequestWithError(cacheKey, e);
       return []; // Return empty list on error
@@ -257,8 +244,6 @@ class TransactionQueryRepository {
       if (forceRefresh) {
         // Invalidate the cache if force refresh is requested
         _cache.invalidate(cacheKey);
-        print(
-            '🗑️ [TransactionQueryRepository] Invalidated daily total cache for force refresh');
       } else {
         final cachedData = await _cache.get<double>(cacheKey,
             maxAge: TransactionCache.shortCacheDuration);
@@ -269,8 +254,6 @@ class TransactionQueryRepository {
 
       // Check if request is already in flight
       if (_cache.isRequestInFlight(cacheKey)) {
-        print(
-            '⏳ [TransactionQueryRepository] Request for daily total already in flight');
         // We can't return the future directly anymore, so we need to wait for it to complete
         await Future.doWhile(() async {
           await Future.delayed(const Duration(milliseconds: 100));
@@ -330,7 +313,6 @@ class TransactionQueryRepository {
 
       return result;
     } catch (e) {
-      print('❌ [TransactionQueryRepository] Error getting daily total: $e');
       final cacheKey = 'daily_total';
       _cache.completeRequestWithError(cacheKey, e);
       return 0.0; // Return 0 on error
@@ -341,14 +323,9 @@ class TransactionQueryRepository {
   Future<Map<String, List<Transaction>>> getTransactionHistory(
       [String? period, String? date, bool forceRefresh = false]) async {
     try {
-      print(
-          '🔍 [TransactionQueryRepository] Getting transaction history with period: $period, date: $date, forceRefresh: $forceRefresh');
-
       // Get current user ID
       final userId = _apiService.getCurrentUserId();
       if (userId == null) {
-        print(
-            '⚠️ [TransactionQueryRepository] No user ID available for transaction history');
         return {};
       }
 
@@ -371,34 +348,25 @@ class TransactionQueryRepository {
           apiPeriod = 'daily';
       }
 
-      print(
-          '📊 [TransactionQueryRepository] Using API period: $apiPeriod for UI period: $period');
-
       // Generate cache key
       final cacheKey = 'transaction_history_${apiPeriod}_${date ?? "current"}';
 
       // If forceRefresh is true, invalidate the cache first
       if (forceRefresh) {
-        print(
-            '🗑️ [TransactionQueryRepository] Force refresh requested, invalidating cache for $cacheKey');
         _cache.invalidate(cacheKey);
       } else {
         // Check cache first if not forcing a refresh
-        final cachedData =
-            await _cache.get<Map<String, List<Transaction>>>(cacheKey,
-                maxAge: TransactionCache.mediumCacheDuration);
+        final cachedData = await _cache.get<Map<String, List<Transaction>>>(
+            cacheKey,
+            maxAge: TransactionCache.mediumCacheDuration);
 
         if (cachedData != null) {
-          print(
-              '📋 [TransactionQueryRepository] Using cached transaction history for $cacheKey');
           return cachedData;
         }
       }
 
       // Register this request as in flight
       if (_cache.isRequestInFlight(cacheKey)) {
-        print(
-            '⏳ [TransactionQueryRepository] Request for transaction history already in flight, waiting');
         // Wait for the existing request to complete
         final completer = Completer<Map<String, List<Transaction>>>();
         _cache.registerRequest(cacheKey, completer);
@@ -421,37 +389,25 @@ class TransactionQueryRepository {
         payload['date'] = date;
       }
 
-      print(
-          '🔄 [TransactionQueryRepository] Sending transaction history request with payload: $payload');
-
       final response = await _apiService.post('/budget/transactions', payload);
-      print(
-          '✅ [TransactionQueryRepository] Received transaction history response: ${response.runtimeType}');
 
       // Handle both response formats: direct list or object with transactions key
       List<dynamic> transactionsList;
       if (response is List) {
         // Server returned a direct list
         transactionsList = response;
-        print(
-            '📋 [TransactionQueryRepository] Response is a list with ${transactionsList.length} transactions');
       } else if (response is Map<String, dynamic>) {
         // Server returned an object with a transactions key
         if (response.containsKey('transactions')) {
           transactionsList = response['transactions'];
-          print(
-              '📋 [TransactionQueryRepository] Response is a map with ${transactionsList.length} transactions');
         } else {
-          print(
-              '⚠️ [TransactionQueryRepository] Response is a map but has no transactions key');
           _cache.completeRequest(cacheKey);
           completer.complete({});
           return {}; // Return empty map if no transactions key
         }
       } else {
         // Unexpected response format
-        print(
-            '❌ [TransactionQueryRepository] Unexpected response format: ${response.runtimeType}');
+
         _cache.completeRequest(cacheKey);
         completer.complete({});
         return {};
@@ -462,9 +418,7 @@ class TransactionQueryRepository {
 
       for (var tx in transactionsList) {
         try {
-          final transaction = tx is Transaction 
-              ? tx 
-              : Transaction.fromJson(tx);
+          final transaction = tx is Transaction ? tx : Transaction.fromJson(tx);
 
           // Format date as key
           final dateKey =
@@ -476,7 +430,6 @@ class TransactionQueryRepository {
 
           transactionsByDate[dateKey]!.add(transaction);
         } catch (e) {
-          print('⚠️ [TransactionQueryRepository] Error processing transaction: $e');
           // Continue processing other transactions
           continue;
         }
@@ -493,11 +446,7 @@ class TransactionQueryRepository {
         }
       });
 
-      print(
-          '📊 [TransactionQueryRepository] Category totals from transaction history:');
-      categoryTotals.forEach((category, total) {
-        print('  - $category: $total');
-      });
+      categoryTotals.forEach((category, total) {});
 
       // Cache the result
       _cache.set(cacheKey, transactionsByDate);
@@ -506,12 +455,8 @@ class TransactionQueryRepository {
       _cache.completeRequest(cacheKey);
       completer.complete(transactionsByDate);
 
-      print(
-          '✅ [TransactionQueryRepository] Successfully processed and cached transaction history');
       return transactionsByDate;
     } catch (e) {
-      print('❌ [TransactionQueryRepository] Error getting transaction history: $e');
-
       // Generate cache key for error handling
       final cacheKey =
           'transaction_history_${period ?? "daily"}_${date ?? "current"}';

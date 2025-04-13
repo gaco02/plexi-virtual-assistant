@@ -28,13 +28,11 @@ class ApiService {
     try {
       final user = _auth.currentUser;
       if (user == null) {
-        print('🔍 ApiService: No current user found');
         return null;
       }
-      print('✅ ApiService: Current user ID: ${user.uid}');
+
       return user.uid;
     } catch (e) {
-      print('❌ ApiService: Error getting current user: $e');
       return null;
     }
   }
@@ -42,27 +40,20 @@ class ApiService {
   /// Get a valid token, using cached token when possible
   Future<String> _getValidToken() async {
     final now = DateTime.now();
-    print('🔍 ApiService: Getting valid token');
 
     // If we have a valid cached token that's not expired, use it
     if (_cachedToken != null &&
         _tokenExpiry != null &&
         now.isBefore(_tokenExpiry!)) {
-      print(
-          '🔍 ApiService: Using cached token (expires in ${_tokenExpiry!.difference(now).inMinutes} minutes)');
       return _cachedToken!;
     }
 
     try {
       final user = _auth.currentUser;
-      print('🔍 ApiService: Checking current user for token');
 
       if (user == null) {
-        print('❌ ApiService: User not authenticated for token request');
         throw Exception('User not authenticated');
       }
-      print(
-          '🔍 ApiService: User authenticated: ${user.email ?? 'No email'} (${user.uid})');
 
       // Get a fresh token with forceRefresh=false to reduce Firebase calls
       // Only force refresh if we don't have a token or it's expired
@@ -78,9 +69,6 @@ class ApiService {
       _cachedToken = token;
       _tokenExpiry = now.add(const Duration(
           minutes: 55)); // Set expiry slightly before actual expiry
-
-      print(
-          '✅ ApiService: Successfully obtained new token, expires in 55 minutes');
       return token;
     } catch (e) {
       rethrow;
@@ -91,7 +79,6 @@ class ApiService {
     String endpoint, {
     Map<String, dynamic>? queryParameters,
   }) async {
-    print('🔍 ApiService: GET request to $endpoint');
     try {
       var uri = Uri.parse('$baseUrl$endpoint');
 
@@ -145,9 +132,6 @@ class ApiService {
         } catch (decodeError) {
           errorDetails = 'Could not access response body';
         }
-
-        print(
-            '❌ ApiService: Server error ${response.statusCode} details: $errorDetails');
         throw Exception(
             'API request failed with status: ${response.statusCode}');
       }
@@ -161,7 +145,6 @@ class ApiService {
     Map<String, dynamic> data, {
     bool useFormData = false,
   }) async {
-    print('🔍 ApiService: POST request to $endpoint');
     try {
       final headers = await _getHeaders();
       final url = Uri.parse('$baseUrl$endpoint');
@@ -220,9 +203,6 @@ class ApiService {
         } catch (decodeError) {
           errorDetails = 'Could not access response body';
         }
-
-        print(
-            '❌ ApiService: Server error ${response.statusCode} details: $errorDetails');
         throw Exception(
             'API request failed with status: ${response.statusCode}');
       }
@@ -240,7 +220,6 @@ class ApiService {
       // For certain endpoints like calories/entries/add, we know they might return 500
       // even though the operation succeeded
       if (endpoint.contains('calories/entries/add')) {
-        print('📡 [ApiService] Handled expected error in $endpoint: $e');
         // Return a synthetic success response
         return {
           'success': true,
@@ -278,7 +257,6 @@ class ApiService {
   }
 
   Future<dynamic> put(String endpoint, Map<String, dynamic> data) async {
-    print('🔍 ApiService: PUT request to $endpoint');
     try {
       await _throttleRequest();
 

@@ -19,27 +19,21 @@ class TransactionAnalysisRepository {
 
       // If we should use cached data or force a refresh
       final shouldRefresh = await _cache.shouldRefreshAnalysis();
-      print(
-          '🔄 [TransactionAnalysisRepository] Should refresh analysis: $shouldRefresh');
 
       // Check cache first if we're not forcing a refresh
       if (!shouldRefresh) {
-        final cachedData = await _cache
-            .get<TransactionAnalysis>(cacheKey, maxAge: TransactionCache.longCacheDuration);
+        final cachedData = await _cache.get<TransactionAnalysis>(cacheKey,
+            maxAge: TransactionCache.longCacheDuration);
         if (cachedData != null) {
-          print('📋 [TransactionAnalysisRepository] Using cached analysis data');
           return cachedData;
         }
       } else {
         // If we should refresh, invalidate the cache
         _cache.invalidate(cacheKey);
-        print('🗑️ [TransactionAnalysisRepository] Invalidated analysis cache');
       }
 
       // Check if request is already in flight
       if (_cache.isRequestInFlight(cacheKey)) {
-        print(
-            '⏳ [TransactionAnalysisRepository] Request for transaction analysis already in flight');
         // We can't return the future directly anymore, so we need to wait for it to complete
         await Future.doWhile(() async {
           await Future.delayed(const Duration(milliseconds: 100));
@@ -47,8 +41,7 @@ class TransactionAnalysisRepository {
         });
 
         // Now try to get from cache
-        final cachedData =
-            await _cache.get<TransactionAnalysis>(cacheKey);
+        final cachedData = await _cache.get<TransactionAnalysis>(cacheKey);
         if (cachedData != null) {
           return cachedData;
         }
@@ -122,20 +115,15 @@ class TransactionAnalysisRepository {
 
       final analysis = TransactionAnalysis.fromJson(response);
 
-      print(
-          '✅ [TransactionAnalysisRepository] Fetched fresh analysis data from server');
-
       // Cache the result
       _cache.set(cacheKey, analysis);
       _cache.completeRequest(cacheKey);
 
       // Update the last refresh timestamp
       await _cache.updateLastAnalysisRefreshTime();
-      print('⏱️ [TransactionAnalysisRepository] Updated last refresh timestamp');
 
       return analysis;
     } catch (e) {
-      print('❌ [TransactionAnalysisRepository] Error getting transaction analysis: $e');
       final cacheKey = 'transaction_analysis_${month ?? "current"}';
 
       // Return a default empty transaction analysis on error
@@ -153,27 +141,18 @@ class TransactionAnalysisRepository {
   /// Force a refresh of the transaction analysis
   Future<TransactionAnalysis> forceRefreshAnalysis([String? month]) async {
     try {
-      print(
-          '🔄 [TransactionAnalysisRepository] Force refreshing analysis data for month: ${month ?? "current"}');
-
       // Generate cache key
       final cacheKey = 'transaction_analysis_${month ?? "current"}';
 
       // Invalidate the cache first
       _cache.invalidate(cacheKey);
-      print(
-          '🗑️ [TransactionAnalysisRepository] Invalidated analysis cache for force refresh');
 
       // Also invalidate transaction history caches to ensure fresh data
       _cache.invalidate('transaction_history_monthly_current');
       _cache.invalidate('transaction_history_daily_current');
-      print(
-          '🗑️ [TransactionAnalysisRepository] Also invalidated transaction history caches');
 
       // Check if a request is already in flight
       if (_cache.isRequestInFlight(cacheKey)) {
-        print(
-            '⏳ [TransactionAnalysisRepository] Request for analysis already in flight, waiting');
         // Wait for the existing request to complete
         final completer = Completer<TransactionAnalysis>();
         _cache.registerRequest(cacheKey, completer);
@@ -209,14 +188,8 @@ class TransactionAnalysisRepository {
         final monthlySalary = prefs.getDouble('monthly_salary');
         if (monthlySalary != null) {
           queryParams['monthly_salary'] = monthlySalary;
-          print('💰 [TransactionAnalysisRepository] Including monthly salary: $monthlySalary');
         }
-      } catch (e) {
-        print('⚠️ [TransactionAnalysisRepository] Error getting monthly salary: $e');
-      }
-
-      print(
-          '🔄 [TransactionAnalysisRepository] Sending analysis request with payload: $queryParams');
+      } catch (e) {}
 
       // Make the API request to the correct endpoint with POST method
       final response = await _apiService.post(
@@ -224,17 +197,10 @@ class TransactionAnalysisRepository {
         queryParams,
       );
 
-      print(
-          '✅ [TransactionAnalysisRepository] Received analysis response: ${response.runtimeType}');
-      print('📊 [TransactionAnalysisRepository] Analysis response content: $response');
-
       // Check if response contains an error
       if (response is Map<String, dynamic>) {
         if (response.containsKey('error') ||
             (response.containsKey('status') && response['status'] == 'error')) {
-          print(
-              '⚠️ [TransactionAnalysisRepository] Error in analysis response: ${response['error'] ?? response['message'] ?? "Unknown error"}');
-
           // Return a default empty transaction analysis
           final defaultAnalysis = TransactionAnalysis(
             monthlySalary: 0.0,
@@ -250,13 +216,8 @@ class TransactionAnalysisRepository {
 
         // Debug log the response contents
         if (response.containsKey('actual')) {
-          print('📊 [TransactionAnalysisRepository] Analysis actual allocation:');
           final actual = response['actual'];
-          if (actual is Map<String, dynamic>) {
-            print('  - needs: ${actual['needs']}');
-            print('  - wants: ${actual['wants']}');
-            print('  - savings: ${actual['savings']}');
-          }
+          if (actual is Map<String, dynamic>) {}
         }
 
         // Parse the response into a TransactionAnalysis object
@@ -264,12 +225,6 @@ class TransactionAnalysisRepository {
           final analysis = TransactionAnalysis.fromJson(response);
 
           // Log the parsed analysis data
-          print('📊 [TransactionAnalysisRepository] Parsed analysis data:');
-          print('  - monthlySalary: ${analysis.monthlySalary}');
-          print(
-              '  - ideal: needs=${analysis.ideal.needs}, wants=${analysis.ideal.wants}, savings=${analysis.ideal.savings}');
-          print(
-              '  - actual: needs=${analysis.actual.needs}, wants=${analysis.actual.wants}, savings=${analysis.actual.savings}');
 
           // Cache the analysis
           _cache.set(cacheKey, analysis);
@@ -278,13 +233,8 @@ class TransactionAnalysisRepository {
           _cache.completeRequest(cacheKey);
           completer.complete(analysis);
 
-          print(
-              '✅ [TransactionAnalysisRepository] Successfully refreshed and cached analysis data');
           return analysis;
         } catch (e) {
-          print(
-              '❌ [TransactionAnalysisRepository] Error parsing analysis response: $e');
-
           // Return a default empty transaction analysis
           final defaultAnalysis = TransactionAnalysis(
             monthlySalary: 0.0,
@@ -298,9 +248,6 @@ class TransactionAnalysisRepository {
           return defaultAnalysis;
         }
       } else {
-        print(
-            '❌ [TransactionAnalysisRepository] Unexpected response format: ${response.runtimeType}');
-
         // Return a default empty transaction analysis
         final defaultAnalysis = TransactionAnalysis(
           monthlySalary: 0.0,
@@ -314,8 +261,6 @@ class TransactionAnalysisRepository {
         return defaultAnalysis;
       }
     } catch (e) {
-      print('❌ [TransactionAnalysisRepository] Error refreshing analysis: $e');
-
       // Generate cache key for error handling
       final cacheKey = 'transaction_analysis_${month ?? "current"}';
       _cache.completeRequestWithError(cacheKey, e);

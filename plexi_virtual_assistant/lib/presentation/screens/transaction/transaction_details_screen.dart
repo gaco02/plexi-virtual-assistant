@@ -106,8 +106,6 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen>
   void _loadInitialData() {
     // If cache is already initialized, use it
     if (TransactionDetailsCache.isInitialized) {
-      print('📋 [TransactionDetailsScreen] Using cached data for initial load');
-
       // Update the UI with cached data
       if (_tabController.index == 0) {
         // Analysis tab - use cached analysis data
@@ -120,8 +118,7 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen>
     }
 
     // Otherwise, load fresh data
-    print(
-        '🔄 [TransactionDetailsScreen] No cached data, performing initial load');
+
     setState(() => _isLoading = true);
 
     // Load transactions for the selected period (always Month now)
@@ -158,12 +155,10 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen>
   /// Load transaction history data
   void _loadHistoryData({bool useCache = false}) {
     if (useCache && TransactionDetailsCache.transactions.isNotEmpty) {
-      print('📋 [TransactionDetailsScreen] Using cached history data');
       setState(() => _isLoading = false);
       return;
     }
 
-    print('🔄 [TransactionDetailsScreen] Loading fresh history data');
     context.read<TransactionAnalysisBloc>().add(
           LoadTransactionHistory(
             period: analysisPeriod,
@@ -179,8 +174,6 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen>
     if (useCache &&
         (analysisBloc.cachedAnalysis != null ||
             TransactionDetailsCache.analysis != null)) {
-      print('📋 [TransactionDetailsScreen] Using cached analysis data');
-
       // If we have cached analysis in the bloc, use it
       if (analysisBloc.cachedAnalysis != null) {
         TransactionDetailsCache.analysis = analysisBloc.cachedAnalysis;
@@ -191,7 +184,7 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen>
     }
 
     // Otherwise, load fresh data
-    print('🔄 [TransactionDetailsScreen] Loading fresh analysis data');
+
     analysisBloc.add(const LoadTransactionAnalysis());
   }
 
@@ -199,8 +192,6 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen>
   void _loadDataForCurrentTab(
       {bool forceRefresh = false, bool useCache = true}) {
     if (_isLoading) {
-      print(
-          '⏳ [TransactionDetailsScreen] Already loading data, skipping redundant request');
       return;
     }
 
@@ -211,7 +202,6 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen>
 
     // Use cached data if available and requested
     if (useCache && TransactionDetailsCache.isInitialized) {
-      print('📋 [TransactionDetailsScreen] Using cached data for current tab');
       setState(() => _isLoading = false);
       return;
     }
@@ -219,12 +209,12 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen>
     // Only load analysis data if it's not already cached
     if (analysisBloc.cachedAnalysis == null &&
         TransactionDetailsCache.analysis == null) {
-      print(
-          '🔄 [TransactionDetailsScreen] No cached analysis data, requesting initial load');
       analysisBloc.add(const LoadTransactionAnalysis());
     } else {
-      print(
-          '📋 [TransactionDetailsScreen] Using cached analysis data, skipping refresh');
+      // Use the cached analysis data
+      if (analysisBloc.cachedAnalysis != null) {
+        TransactionDetailsCache.analysis = analysisBloc.cachedAnalysis;
+      }
     }
 
     // Load data based on the current tab
@@ -322,13 +312,10 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen>
 
   /// The "Summary" tab content
   Widget _buildSummaryTab(BuildContext context) {
-    print("Building summary tab");
     return BlocListener<TransactionBloc, TransactionState>(
       listener: (context, state) {
         // Update cache when new data is loaded
         if (state is TransactionsLoaded) {
-          print(
-              "Updating transaction cache with ${state.transactions.length} transactions");
           TransactionDetailsCache.transactions = state.transactions;
           TransactionDetailsCache.monthlyTotal = state.monthlyAmount;
           TransactionDetailsCache.categoryTotals =
@@ -341,7 +328,6 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen>
         listener: (context, state) {
           // Update cache when new analysis data is loaded
           if (state is TransactionAnalysisLoaded) {
-            print("Updating analysis cache");
             TransactionDetailsCache.analysis = state.analysis;
             TransactionDetailsCache.isInitialized = true;
             setState(() => _isLoading = false);
@@ -358,8 +344,6 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen>
             return previous.runtimeType != current.runtimeType;
           },
           builder: (context, state) {
-            print("TransactionBloc state: $state");
-
             // Show loading indicator if we're still loading and have no cached data
             if ((state is TransactionLoading || state is TransactionInitial) &&
                 !TransactionDetailsCache.isInitialized) {
@@ -407,14 +391,10 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen>
                               return false;
                             },
                             builder: (context, state) {
-                              print(
-                                  "Building category breakdown with state: $state");
-
                               // If we have cached data, use it
                               if (TransactionDetailsCache.isInitialized &&
                                   TransactionDetailsCache
                                       .categoryTotals.isNotEmpty) {
-                                print("Using cached category totals");
                                 return SpendingByCategory(
                                   categoryTotals:
                                       TransactionDetailsCache.categoryTotals,
@@ -443,8 +423,6 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen>
                                 final monthlyTransactions =
                                     _filterMonthlyTransactions(
                                         state.transactions);
-                                print(
-                                    "Filtered ${state.transactions.length} transactions to ${monthlyTransactions.length} monthly transactions");
 
                                 // Calculate category totals from monthly transactions
                                 final categoryTotals = _calculateCategoryTotals(

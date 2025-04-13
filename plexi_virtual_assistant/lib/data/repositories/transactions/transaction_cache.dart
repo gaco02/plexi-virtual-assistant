@@ -6,9 +6,10 @@ import '../../models/transaction_analysis.dart';
 
 class TransactionCache {
   final CacheManager _cacheManager = CacheManager();
-  
+
   // Key for storing the last analysis refresh timestamp
-  static const String _lastAnalysisRefreshKey = 'last_analysis_refresh_timestamp';
+  static const String _lastAnalysisRefreshKey =
+      'last_analysis_refresh_timestamp';
 
   // Cache durations that can be used by the repository
   static const Duration shortCacheDuration = Duration(minutes: 2);
@@ -38,11 +39,11 @@ class TransactionCache {
   // Get data from cache with proper type conversion
   Future<T?> get<T>(String cacheKey, {Duration? maxAge}) async {
     final dynamic data = await _cacheManager.get(cacheKey, maxAge: maxAge);
-    
+
     if (data == null) {
       return null;
     }
-    
+
     // Handle specific type conversions
     if (T == List<Transaction>) {
       if (data is List<Transaction>) {
@@ -59,7 +60,6 @@ class TransactionCache {
           }
           return convertedList as T;
         } catch (e) {
-          print('❌ [TransactionCache] Error converting List to List<Transaction>: $e');
           return null;
         }
       }
@@ -71,7 +71,6 @@ class TransactionCache {
         try {
           return TransactionAnalysis.fromJson(data) as T;
         } catch (e) {
-          print('❌ [TransactionCache] Error converting Map to TransactionAnalysis: $e');
           return null;
         }
       }
@@ -97,7 +96,6 @@ class TransactionCache {
           }
           return convertedMap as T;
         } catch (e) {
-          print('❌ [TransactionCache] Error converting Map to Map<String, List<Transaction>>: $e');
           return null;
         }
       }
@@ -116,12 +114,11 @@ class TransactionCache {
       }
       return null;
     }
-    
+
     // For other types, try a direct cast
     try {
       return data as T;
     } catch (e) {
-      print('❌ [TransactionCache] Type conversion error for $cacheKey: $e');
       return null;
     }
   }
@@ -138,7 +135,6 @@ class TransactionCache {
 
   // Invalidate all transaction-related caches
   void invalidateTransactionCaches() {
-    print('🗑️ [TransactionCache] Invalidating transaction caches');
     _cacheManager.invalidate('daily_transactions');
     _cacheManager.invalidate('monthly_transactions');
     _cacheManager.invalidate('daily_total');
@@ -146,11 +142,11 @@ class TransactionCache {
     _cacheManager.invalidate('transactions_day');
     _cacheManager.invalidate('transactions_week');
     _cacheManager.invalidate('transactions_year');
-    
+
     // IMPORTANT: Also invalidate the analysis cache to ensure it gets refreshed
     // Previous comment: "Don't invalidate the monthly analysis cache to preserve monthly view"
     // This was causing the needs/wants/savings values to not update
-    print('🗑️ [TransactionCache] Also invalidating analysis cache');
+
     _cacheManager.invalidate('transaction_analysis_current');
   }
 
@@ -165,7 +161,8 @@ class TransactionCache {
         return true;
       }
 
-      final lastRefreshTime = DateTime.fromMillisecondsSinceEpoch(lastRefreshTimestamp);
+      final lastRefreshTime =
+          DateTime.fromMillisecondsSinceEpoch(lastRefreshTimestamp);
       final now = DateTime.now();
 
       // Check if it's a new day since the last refresh

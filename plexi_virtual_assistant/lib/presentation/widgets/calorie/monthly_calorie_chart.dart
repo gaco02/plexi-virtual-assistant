@@ -44,7 +44,7 @@ class _WeeklyCalorieChartState extends State<WeeklyCalorieChart> {
   @override
   void initState() {
     super.initState();
-    print('📊 MonthlyChart - initState called');
+
     // Don't process entries in initState, wait for didChangeDependencies
   }
 
@@ -63,7 +63,6 @@ class _WeeklyCalorieChartState extends State<WeeklyCalorieChart> {
 
     // Only process entries if they've changed and we're not already processing
     if (!_isProcessing && !listEquals(widget.entries, oldWidget.entries)) {
-      print('📊 MonthlyChart - Entries changed, reprocessing');
       _processEntries(widget.entries ?? []);
     }
   }
@@ -73,8 +72,6 @@ class _WeeklyCalorieChartState extends State<WeeklyCalorieChart> {
     if (_visibleDays.isEmpty || _todayIndex == null) {
       return;
     }
-
-    print('📊 MonthlyChart - Scrolling to today (index $_todayIndex)');
 
     // Calculate position to show the last 7 days (or as many as available up to today)
     final daysToShow = 7;
@@ -104,7 +101,6 @@ class _WeeklyCalorieChartState extends State<WeeklyCalorieChart> {
 
   void _processEntries(List<CalorieEntry> entries) {
     if (entries.isEmpty) {
-      print('📊 MonthlyChart - No entries to process');
       setState(() {
         _dailyCalories = {};
         _visibleDays = [];
@@ -112,8 +108,6 @@ class _WeeklyCalorieChartState extends State<WeeklyCalorieChart> {
       });
       return;
     }
-
-    print('📊 MonthlyChart - Processing ${entries.length} entries');
 
     // Sort entries by date
     final sortedEntries = List<CalorieEntry>.from(entries)
@@ -124,9 +118,6 @@ class _WeeklyCalorieChartState extends State<WeeklyCalorieChart> {
     final today = DateTime(now.year, now.month, now.day);
     final firstDate = DateTime(now.year, now.month, 1);
     final lastDate = DateTime(now.year, now.month + 1, 0);
-
-    print(
-        '📊 MonthlyChart - Processing entries from ${firstDate.toIso8601String()} to ${lastDate.toIso8601String()}');
 
     // Initialize daily calories map
     final Map<DateTime, int> newDailyCalories = {};
@@ -148,7 +139,6 @@ class _WeeklyCalorieChartState extends State<WeeklyCalorieChart> {
           normalizedDate.month == today.month &&
           normalizedDate.day == today.day) {
         newTodayIndex = dayIndex;
-        print('📊 MonthlyChart - Today identified at index $newTodayIndex');
       }
 
       newDailyCalories[normalizedDate] = 0;
@@ -168,18 +158,10 @@ class _WeeklyCalorieChartState extends State<WeeklyCalorieChart> {
           normalizedDate.isBefore(lastDate.add(const Duration(days: 1)))) {
         newDailyCalories[normalizedDate] =
             (newDailyCalories[normalizedDate] ?? 0) + entry.calories;
-        print(
-            '📊 MonthlyChart - Added ${entry.calories} calories for ${normalizedDate.month}/${normalizedDate.day}');
       }
     }
-
-    print(
-        '📊 MonthlyChart - Processed ${newVisibleDays.length} days, ${newDailyCalories.entries.where((e) => e.value > 0).length} days with data');
     newDailyCalories.forEach((date, calories) {
-      if (calories > 0) {
-        print(
-            '📊 MonthlyChart - ${date.month}/${date.day}: $calories calories');
-      }
+      if (calories > 0) {}
     });
 
     // Only update state if the data has actually changed
@@ -194,9 +176,7 @@ class _WeeklyCalorieChartState extends State<WeeklyCalorieChart> {
 
       // Scroll to today's position after state update
       _scrollToToday();
-    } else {
-      print('📊 MonthlyChart - Data unchanged, skipping setState');
-    }
+    } else {}
   }
 
   @override
@@ -213,9 +193,7 @@ class _WeeklyCalorieChartState extends State<WeeklyCalorieChart> {
         final shouldRebuild = previous.entries != current.entries ||
             (previous.status == CalorieStatus.loading &&
                 current.status == CalorieStatus.loaded);
-        if (shouldRebuild) {
-          print('📊 MonthlyChart - Rebuilding due to bloc state change');
-        }
+        if (shouldRebuild) {}
         return shouldRebuild;
       },
       builder: (context, state) {

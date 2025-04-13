@@ -57,8 +57,6 @@ class _CalorieDetailsScreenState extends State<CalorieDetailsScreen>
     // Listen for tab changes to refresh data when switching to history tab
     _tabController.addListener(() {
       if (_tabController.index == 1) {
-        print(
-            '🔍 CalorieDetailsScreen: Switched to history tab, loading entries');
         _loadCalorieEntries(forceRefresh: true);
       }
     });
@@ -69,8 +67,6 @@ class _CalorieDetailsScreenState extends State<CalorieDetailsScreen>
     // Set a timeout to reset loading state if it gets stuck
     Future.delayed(const Duration(seconds: 5), () {
       if (mounted && _isLoading) {
-        print(
-            '🔍 CalorieDetailsScreen: Forcing loading state reset after timeout');
         setState(() {
           _isLoading = false;
         });
@@ -88,9 +84,6 @@ class _CalorieDetailsScreenState extends State<CalorieDetailsScreen>
 
       // Get the repository from context
       _repository = context.read<CalorieRepository>();
-
-      print(
-          '🔍 CalorieDetailsScreen: Initial data load in didChangeDependencies');
 
       // Check current bloc state before loading
       final calorieState = context.read<CalorieBloc>().state;
@@ -209,9 +202,6 @@ class _CalorieDetailsScreenState extends State<CalorieDetailsScreen>
           return BlocBuilder<CalorieBloc, CalorieState>(
             builder: (context, calorieState) {
               // Debug current state
-              print(
-                  '🔍 CalorieDetailsScreen: Current CalorieBloc state: ${calorieState.status}');
-              print('🔍 CalorieDetailsScreen: Loading state: $_isLoading');
 
               // Make sure to update loading state when bloc changes
               if (calorieState.status == CalorieStatus.loaded) {
@@ -375,11 +365,8 @@ class _CalorieDetailsScreenState extends State<CalorieDetailsScreen>
             previous.status != current.status;
       },
       builder: (context, state) {
-        print('🔍 SUMMARY TAB - Building with ${state.entries.length} entries');
-
         // If we don't have entries in the state, trigger monthly data load
         if (state.entries.isEmpty && state.status != CalorieStatus.loading) {
-          print('🔍 SUMMARY TAB - No entries found, requesting monthly data');
           context.read<CalorieBloc>().add(const LoadMonthlyCalories());
         }
 
@@ -482,17 +469,11 @@ class _CalorieDetailsScreenState extends State<CalorieDetailsScreen>
     // So we use _entries directly instead of the filtered entries
     final allEntries = _entries;
 
-    print(
-        '🔍 CalorieDetailsScreen: Building history tab with ${allEntries.length} entries');
-    print('🔍 CalorieDetailsScreen: Loading state: $_isLoading');
-
     // Set a timeout to reset loading state if it gets stuck
     if (_isLoading) {
       Future.microtask(() {
         Future.delayed(const Duration(seconds: 2), () {
           if (mounted && _isLoading) {
-            print(
-                '🔍 CalorieDetailsScreen: Force resetting loading state in history tab');
             setState(() {
               _isLoading = false;
             });
@@ -575,24 +556,16 @@ class _CalorieDetailsScreenState extends State<CalorieDetailsScreen>
 
   Widget _buildFoodEntriesForSelectedDate(List<CalorieEntry> allEntries) {
     // Filter entries for the selected date
-    print(
-        '🔍 CalorieDetailsScreen: Filtering entries for ${_selectedDate.month}/${_selectedDate.day}');
 
     // Filter by date only (month and day, not year)
     final dateFilteredEntries = allEntries.where((entry) {
       final matchesDate = entry.timestamp.month == _selectedDate.month &&
           entry.timestamp.day == _selectedDate.day;
 
-      if (matchesDate) {
-        print(
-            '🔍 CalorieDetailsScreen: Found entry for selected date: ${entry.foodItem}');
-      }
+      if (matchesDate) {}
 
       return matchesDate;
     }).toList();
-
-    print(
-        '🔍 CalorieDetailsScreen: Found ${dateFilteredEntries.length} entries for selected date');
 
     // No meal type filtering - use all entries that match the date
     final filteredEntries = dateFilteredEntries;
@@ -916,9 +889,6 @@ class _CalorieDetailsScreenState extends State<CalorieDetailsScreen>
       setState(() => _isLoading = true);
     }
 
-    print(
-        '🔍 CalorieDetailsScreen: Loading entries with forceRefresh=$forceRefresh');
-
     try {
       // Only refresh from server if explicitly requested
       if (forceRefresh) {
@@ -944,8 +914,6 @@ class _CalorieDetailsScreenState extends State<CalorieDetailsScreen>
       // Limit the number
       final limitedEntries = uniqueEntries.take(_maxEntriesToLoad).toList();
 
-      print('🔍 CalorieDetailsScreen: Loaded ${limitedEntries.length} entries');
-
       if (mounted) {
         setState(() {
           _entries = limitedEntries;
@@ -960,7 +928,6 @@ class _CalorieDetailsScreenState extends State<CalorieDetailsScreen>
         }
       }
     } catch (e) {
-      print('🔍 CalorieDetailsScreen: Error loading entries: $e');
       if (mounted) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1085,13 +1052,11 @@ class _CalorieDetailsScreenState extends State<CalorieDetailsScreen>
     try {
       switch (timeFrame) {
         case 'Today':
-          print('🔍 DETAILS SCREEN - Loading daily calories from bloc');
           context
               .read<CalorieBloc>()
               .add(const LoadDailyCalories(forceRefresh: true));
           break;
         case 'Week':
-          print('🔍 DETAILS SCREEN - Loading weekly calories from bloc');
           context.read<CalorieBloc>().add(const LoadWeeklyCalories());
           break;
         case 'Month':
@@ -1100,7 +1065,6 @@ class _CalorieDetailsScreenState extends State<CalorieDetailsScreen>
           break;
       }
     } catch (e) {
-      print('🔍 DETAILS SCREEN - Error loading data: $e');
     } finally {
       if (mounted) {
         setState(() {

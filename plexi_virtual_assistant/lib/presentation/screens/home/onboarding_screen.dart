@@ -30,7 +30,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 
   void _updateName(String value) {
-    print('🔍 Onboarding: Name entered: "$value"');
     setState(() {
       _preferences = _preferences.copyWith(preferredName: value);
       _validatePreferences();
@@ -40,7 +39,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   @override
   void initState() {
     super.initState();
-    print('🔍 Onboarding: Screen initialized');
+
     _pages = [
       _WelcomePage(onNext: () {
         _pageController.nextPage(
@@ -57,15 +56,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     return BlocListener<PreferencesBloc, PreferencesState>(
       listener: (context, state) {
         if (state is PreferencesLoaded && _canProceed) {
-          print('🔍 Onboarding: Preferences loaded successfully with name: "${state.preferences.preferredName}"');
           if (_currentPage == _pages.length - 1) {
-            print('🔍 Onboarding: Navigating to ChatScreen');
             Navigator.of(context).pushReplacement(
               MaterialPageRoute(builder: (_) => const ChatScreen()),
             );
           }
         } else if (state is PreferencesError) {
-          print('❌ Onboarding: Error loading preferences: ${state.message}');
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text(state.message)),
           );
@@ -118,7 +114,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                               }
                             : _canProceed
                                 ? () {
-                                    print('🔍 Onboarding: Saving preferences with name: "${_preferences.preferredName}"');
                                     context.read<PreferencesBloc>().add(
                                           SavePreferences(_preferences),
                                         );

@@ -61,21 +61,14 @@ class TransactionAnalysisBloc
     final nextMidnight = DateTime(now.year, now.month, now.day + 1);
     final timeUntilMidnight = nextMidnight.difference(now);
 
-    print(
-        '⏰ [TransactionAnalysisBloc] Scheduled refresh set for midnight (${nextMidnight.toString()})');
-    print(
-        '⏱️ [TransactionAnalysisBloc] Time until refresh: ${timeUntilMidnight.inHours}h ${timeUntilMidnight.inMinutes % 60}m');
-
     // Schedule the first refresh at midnight
     _scheduledRefreshTimer = Timer(timeUntilMidnight, () {
       // Perform the refresh
-      print(
-          '🔄 [TransactionAnalysisBloc] Executing scheduled midnight refresh');
+
       add(const ManualRefreshAnalysis());
 
       // Set up a daily timer for subsequent refreshes
       _scheduledRefreshTimer = Timer.periodic(const Duration(days: 1), (_) {
-        print('🔄 [TransactionAnalysisBloc] Executing daily scheduled refresh');
         add(const ManualRefreshAnalysis());
       });
     });
@@ -95,8 +88,6 @@ class TransactionAnalysisBloc
 
     // If less than 1 second has passed, don't process unless it's a force refresh
     if (timeSinceLastRequest.inMilliseconds < 1000) {
-      print(
-          '⏱️ [TransactionAnalysisBloc] Ignoring redundant analysis request (${timeSinceLastRequest.inMilliseconds}ms since last request)');
       return false;
     }
 
@@ -112,7 +103,6 @@ class TransactionAnalysisBloc
 
     // Check if we should process this request
     if (!_shouldProcessAnalysisRequest(event.forceRefresh)) {
-      print('🛑 [TransactionAnalysisBloc] Skipping redundant analysis request');
       return;
     }
 
@@ -130,35 +120,22 @@ class TransactionAnalysisBloc
     Emitter<TransactionAnalysisState> emit,
   ) async {
     try {
-      print(
-          '🔍 [TransactionAnalysisBloc] Loading analysis with forceRefresh: ${event.forceRefresh}');
-
       // If forceRefresh is true, invalidate cache
       if (event.forceRefresh) {
         _cachedAnalysis = null;
         // Also tell the repository to invalidate its caches
         _repository.invalidateTransactionCaches();
-        print(
-            '🗑️ [TransactionAnalysisBloc] Invalidated analysis cache due to forceRefresh');
       }
 
       // Only show loading if we don't have cached data and not using combined state
       if (_cachedAnalysis == null && !_usingCombinedState) {
         emit(TransactionAnalysisLoading());
-        print(
-            '⏳ [TransactionAnalysisBloc] Emitted TransactionAnalysisLoading state');
-      } else {
-        print(
-            '📋 [TransactionAnalysisBloc] Using cached analysis or combined state');
-      }
+      } else {}
 
       final analysis = await _repository.getTransactionAnalysis(event.month);
-      print(
-          '✅ [TransactionAnalysisBloc] Received analysis data from repository');
 
       // Cache the analysis data
       _cachedAnalysis = analysis;
-      print('💾 [TransactionAnalysisBloc] Cached analysis data in memory');
 
       // If we're using the combined state, update it with the new analysis data
       if (_usingCombinedState) {
@@ -166,24 +143,17 @@ class TransactionAnalysisBloc
           final combinedState = state as TransactionCombinedState;
 
           emit(combinedState.copyWith(analysis: analysis));
-          print(
-              '🔄 [TransactionAnalysisBloc] Updated combined state with new analysis');
         } else {
           emit(TransactionCombinedState(
             analysis: analysis,
             transactionsByDate: _cachedHistory,
           ));
           _usingCombinedState = true;
-          print(
-              '🔄 [TransactionAnalysisBloc] Created new combined state with analysis');
         }
       } else {
         emit(TransactionAnalysisLoaded(analysis));
-        print(
-            '✅ [TransactionAnalysisBloc] Emitted TransactionAnalysisLoaded state');
       }
     } catch (e) {
-      print('❌ [TransactionAnalysisBloc] Error loading analysis: $e');
       emit(TransactionAnalysisError('Failed to load analysis: $e'));
     }
   }
@@ -295,8 +265,6 @@ class TransactionAnalysisBloc
     Emitter<TransactionAnalysisState> emit,
   ) async {
     try {
-      print('🔄 [TransactionAnalysisBloc] Editing transaction: ${event.transactionId}, amount: ${event.amount}, category: ${event.category}');
-      
       // Use the repository directly to update the transaction
       final success = await _repository.updateTransaction(
         event.transactionId,
@@ -306,12 +274,9 @@ class TransactionAnalysisBloc
       );
 
       if (success) {
-        print('✅ [TransactionAnalysisBloc] Transaction updated successfully, refreshing analysis');
         // Force refresh the analysis data after updating a transaction
         add(const ManualRefreshAnalysis(forceRefresh: true));
-      } else {
-        print('❌ [TransactionAnalysisBloc] Failed to update transaction');
-      }
+      } else {}
 
       // Refresh the transaction history
       add(LoadTransactionHistory(
@@ -320,7 +285,6 @@ class TransactionAnalysisBloc
         forceRefresh: true,
       ));
     } catch (e) {
-      print('❌ [TransactionAnalysisBloc] Error updating transaction: $e');
       // If there's an error, we'll just refresh the data to show the current state
       add(LoadTransactionHistory(
         period: _cachedHistoryPeriod,
@@ -335,18 +299,13 @@ class TransactionAnalysisBloc
     Emitter<TransactionAnalysisState> emit,
   ) async {
     try {
-      print('🔄 [TransactionAnalysisBloc] Deleting transaction: ${event.transactionId}');
-      
       // Use the repository directly to delete the transaction
       final success = await _repository.deleteTransaction(event.transactionId);
 
       if (success) {
-        print('✅ [TransactionAnalysisBloc] Transaction deleted successfully, refreshing analysis');
         // Force refresh the analysis data after deleting a transaction
         add(const ManualRefreshAnalysis(forceRefresh: true));
-      } else {
-        print('❌ [TransactionAnalysisBloc] Failed to delete transaction');
-      }
+      } else {}
 
       // Refresh the transaction history
       add(LoadTransactionHistory(
@@ -355,7 +314,6 @@ class TransactionAnalysisBloc
         forceRefresh: true,
       ));
     } catch (e) {
-      print('❌ [TransactionAnalysisBloc] Error deleting transaction: $e');
       // If there's an error, we'll just refresh the data to show the current state
       add(LoadTransactionHistory(
         period: _cachedHistoryPeriod,
@@ -370,15 +328,10 @@ class TransactionAnalysisBloc
     Emitter<TransactionAnalysisState> emit,
   ) async {
     try {
-      print(
-          '🔄 [TransactionAnalysisBloc] Refreshing transaction history and analysis');
-
       // If we're using combined state, emit a loading indicator
       if (_usingCombinedState && state is TransactionCombinedState) {
         final combinedState = state as TransactionCombinedState;
         emit(combinedState.copyWith(isRefreshing: true));
-        print(
-            '⏳ [TransactionAnalysisBloc] Updated combined state with isRefreshing=true');
       }
 
       // Since the repository's logTransaction method already refreshed the data,
@@ -388,17 +341,12 @@ class TransactionAnalysisBloc
       final now = DateTime.now();
       final currentMonth =
           '${now.year}-${now.month.toString().padLeft(2, '0')}';
-      print(
-          '📅 [TransactionAnalysisBloc] Fetching latest data for month: $currentMonth');
 
       // Get the latest analysis data (should be cached from the repository refresh)
       final analysis = await _repository.getTransactionAnalysis(currentMonth);
-      print('✅ [TransactionAnalysisBloc] Received latest analysis data');
 
       // Cache the analysis data
       _cachedAnalysis = analysis;
-      print(
-          '💾 [TransactionAnalysisBloc] Updated cached analysis data in memory');
 
       // Get the latest transaction history (should be cached from the repository refresh)
       final history = await _repository.getTransactionHistory(
@@ -406,13 +354,9 @@ class TransactionAnalysisBloc
           _cachedHistoryDate,
           false // Don't force refresh again since repository already did it
           );
-      print(
-          '✅ [TransactionAnalysisBloc] Received latest transaction history data');
 
       // Cache the history data
       _cachedHistory = history;
-      print(
-          '💾 [TransactionAnalysisBloc] Updated cached history data in memory');
 
       // Emit the appropriate state based on what we're using
       if (_usingCombinedState) {
@@ -422,23 +366,14 @@ class TransactionAnalysisBloc
               analysis: analysis,
               transactionsByDate: history,
               isRefreshing: false));
-          print(
-              '✅ [TransactionAnalysisBloc] Updated combined state with latest data');
         }
       } else {
         // Emit separate states for analysis and history
         emit(TransactionAnalysisLoaded(analysis));
-        print(
-            '✅ [TransactionAnalysisBloc] Emitted TransactionAnalysisLoaded state');
 
         emit(TransactionHistoryLoaded(history));
-        print(
-            '✅ [TransactionAnalysisBloc] Emitted TransactionHistoryLoaded state');
       }
     } catch (e) {
-      print(
-          '❌ [TransactionAnalysisBloc] Error refreshing history and analysis: $e');
-
       // If there's an error, try to refresh just the data we have cached
       if (_cachedHistoryPeriod != null) {
         add(LoadTransactionHistory(
@@ -461,71 +396,49 @@ class TransactionAnalysisBloc
     Emitter<TransactionAnalysisState> emit,
   ) async {
     try {
-      print(
-          '🔄 [TransactionAnalysisBloc] Manual refresh requested with forceRefresh: ${event.forceRefresh}');
-
       // Emit loading state if we're not using combined state
       if (!_usingCombinedState) {
         emit(TransactionAnalysisLoading());
-        print(
-            '⏳ [TransactionAnalysisBloc] Emitted TransactionAnalysisLoading state');
       } else if (state is TransactionCombinedState) {
         // If using combined state, emit a loading indicator in the combined state
         final combinedState = state as TransactionCombinedState;
         emit(combinedState.copyWith(isRefreshing: true));
-        print(
-            '⏳ [TransactionAnalysisBloc] Updated combined state with isRefreshing=true');
       }
 
       // Get the current month in YYYY-MM format
       final now = DateTime.now();
       final currentMonth =
           '${now.year}-${now.month.toString().padLeft(2, '0')}';
-      print('📅 [TransactionAnalysisBloc] Refreshing for month: $currentMonth');
 
       // If forceRefresh is true, invalidate caches first
       if (event.forceRefresh) {
         _cachedAnalysis = null;
         _repository.invalidateTransactionCaches();
-        print(
-            '🗑️ [TransactionAnalysisBloc] Invalidated caches due to forceRefresh');
       }
 
       // Force refresh the analysis using the repository's forceRefreshAnalysis method
       final analysis = await _repository.forceRefreshAnalysis(currentMonth);
-      print(
-          '✅ [TransactionAnalysisBloc] Received fresh analysis data from repository');
 
       // Cache the analysis data
       _cachedAnalysis = analysis;
-      print(
-          '💾 [TransactionAnalysisBloc] Cached fresh analysis data in memory');
 
       // Update the state with the new analysis
       if (_usingCombinedState) {
         if (state is TransactionCombinedState) {
           final combinedState = state as TransactionCombinedState;
           emit(combinedState.copyWith(analysis: analysis, isRefreshing: false));
-          print(
-              '✅ [TransactionAnalysisBloc] Updated combined state with fresh analysis');
         } else {
           emit(TransactionCombinedState(
             analysis: analysis,
             transactionsByDate: _cachedHistory,
           ));
-          print(
-              '✅ [TransactionAnalysisBloc] Created new combined state with fresh analysis');
         }
       } else {
         emit(TransactionAnalysisLoaded(analysis));
-        print(
-            '✅ [TransactionAnalysisBloc] Emitted TransactionAnalysisLoaded state with fresh data');
       }
 
       // Also refresh the history data if available
       if (_cachedHistoryPeriod != null && _cachedHistoryDate != null) {
-        print(
-            '🔄 [TransactionAnalysisBloc] Also refreshing transaction history');
         add(LoadTransactionHistory(
           period: _cachedHistoryPeriod,
           date: _cachedHistoryDate,
@@ -533,20 +446,15 @@ class TransactionAnalysisBloc
         ));
       }
     } catch (e) {
-      print('❌ [TransactionAnalysisBloc] Error during manual refresh: $e');
       // Handle errors
       if (_usingCombinedState && state is TransactionCombinedState) {
         final combinedState = state as TransactionCombinedState;
         emit(combinedState.copyWith(
             isRefreshing: false,
             errorMessage: 'Failed to refresh: ${e.toString()}'));
-        print(
-            '⚠️ [TransactionAnalysisBloc] Updated combined state with error message');
       } else {
         emit(TransactionAnalysisError(
             'Failed to refresh analysis: ${e.toString()}'));
-        print(
-            '⚠️ [TransactionAnalysisBloc] Emitted TransactionAnalysisError state');
       }
     }
   }

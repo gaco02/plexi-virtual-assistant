@@ -102,12 +102,8 @@ class _HomeScreenState extends State<HomeScreen>
 
       // Check if we already have cached analysis data
       if (analysisBloc.cachedAnalysis == null) {
-        print(
-            '🔍 [HomeScreen] No cached analysis data, requesting initial load');
         analysisBloc.add(const LoadTransactionAnalysis(forceRefresh: false));
-      } else {
-        print('📋 [HomeScreen] Using cached analysis data, skipping refresh');
-      }
+      } else {}
     } catch (e) {
       // Ignore
     }

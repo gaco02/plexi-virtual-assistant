@@ -39,7 +39,6 @@ void main() async {
   // Initialize the CacheManager as early as possible
   final cacheManager = CacheManager();
   await cacheManager.init();
-  print('✅ Initialized CacheManager at app startup');
 
   // Create a single instance of ApiService to be shared across repositories.
   final apiService = ApiService(

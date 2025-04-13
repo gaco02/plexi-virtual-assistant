@@ -26,19 +26,11 @@ class CaloriePieChart extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Debug incoming values
-    print('🔥 CaloriePieChart received:');
-    print(
-        '🔥 consumedCalories (type: ${consumedCalories.runtimeType}): $consumedCalories');
-    print(
-        '🔥 targetCalories (type: ${targetCalories.runtimeType}): $targetCalories');
 
     // Calculate percentage of target reached
     final double percentage = targetCalories > 0
         ? (consumedCalories / targetCalories * 100).clamp(0, 100).toDouble()
         : 0.0;
-
-    print(
-        '🔥 calculated percentage (type: ${percentage.runtimeType}): $percentage');
 
     // Choose color based on percentage
     final Color progressColor = _getProgressColor(percentage);
@@ -126,20 +118,10 @@ class MacronutrientPieChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    print('🔥 MacronutrientPieChart received:');
-    print('🔥 protein (type: ${protein.runtimeType}): $protein');
-    print('🔥 carbs (type: ${carbs.runtimeType}): $carbs');
-    print('🔥 fat (type: ${fat.runtimeType}): $fat');
-
     // Ensure all values are properly converted to double first
     final double proteinValue = protein.toDouble();
     final double carbsValue = carbs.toDouble();
     final double fatValue = fat.toDouble();
-
-    print('🔥 after conversion:');
-    print('🔥 proteinValue (type: ${proteinValue.runtimeType}): $proteinValue');
-    print('🔥 carbsValue (type: ${carbsValue.runtimeType}): $carbsValue');
-    print('🔥 fatValue (type: ${fatValue.runtimeType}): $fatValue');
 
     final double total = proteinValue + carbsValue + fatValue;
 

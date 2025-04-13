@@ -13,14 +13,10 @@ class TransactionAnalysis {
 
   factory TransactionAnalysis.fromJson(Map<String, dynamic> json) {
     try {
-      print('💰 Parsing TransactionAnalysis from JSON: $json');
-
       // Handle both camelCase and snake_case keys for monthly salary
       final monthlySalary = _parseDouble(json['monthly_salary']) ??
           _parseDouble(json['monthlySalary']) ??
           0.0;
-
-      print('💰 Parsed monthly salary: $monthlySalary');
 
       // Handle different formats for ideal allocation
       TransactionAllocation ideal;
@@ -89,9 +85,6 @@ class TransactionAnalysis {
         }
       }
 
-      print(
-          '💰 Parsed allocations - ideal: ${ideal.toMap()}, actual: ${actual.toMap()}');
-
       // Handle recommendations
       final recommendations = <TransactionRecommendation>[];
       if (json['recommendations'] != null && json['recommendations'] is List) {
@@ -105,8 +98,6 @@ class TransactionAnalysis {
         }
       }
 
-      print('💰 Parsed ${recommendations.length} recommendations');
-
       return TransactionAnalysis(
         monthlySalary: monthlySalary,
         ideal: ideal,
@@ -114,7 +105,6 @@ class TransactionAnalysis {
         recommendations: recommendations,
       );
     } catch (e) {
-      print('❌ Error parsing TransactionAnalysis: $e');
       // Return a default object on error
       return TransactionAnalysis(
         monthlySalary: 0.0,
@@ -147,8 +137,6 @@ class TransactionAllocation {
 
   factory TransactionAllocation.fromJson(Map<String, dynamic> json) {
     try {
-      print('💰 Parsing TransactionAllocation from JSON: $json');
-
       // Handle both camelCase and snake_case keys
       final needs =
           _parseDouble(json['needs']) ?? _parseDouble(json['NEEDS']) ?? 0.0;
@@ -159,16 +147,12 @@ class TransactionAllocation {
       final savings =
           _parseDouble(json['savings']) ?? _parseDouble(json['SAVINGS']) ?? 0.0;
 
-      print(
-          '💰 Parsed values - needs: $needs, wants: $wants, savings: $savings');
-
       return TransactionAllocation(
         needs: needs,
         wants: wants,
         savings: savings,
       );
     } catch (e) {
-      print('❌ Error parsing TransactionAllocation: $e');
       // Return a default object on error
       return TransactionAllocation(needs: 0.0, wants: 0.0, savings: 0.0);
     }
@@ -228,7 +212,6 @@ class TransactionRecommendation {
         potentialSavings: savings,
       );
     } catch (e) {
-      print('❌ Error parsing TransactionRecommendation: $e');
       return TransactionRecommendation(
         category: 'Unknown',
         type: 'Unknown',
@@ -334,10 +317,9 @@ double? _parseDouble(dynamic value) {
     try {
       return double.parse(value);
     } catch (e) {
-      print('❌ Error parsing string to double: $value');
       return 0.0;
     }
   }
-  print('❌ Unknown type for double parsing: ${value.runtimeType}');
+
   return 0.0;
 }

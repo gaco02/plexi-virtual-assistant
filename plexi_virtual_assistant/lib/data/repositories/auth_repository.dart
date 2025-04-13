@@ -16,26 +16,20 @@ class AuthRepository {
 
   Future<void> registerUserWithBackend(User user) async {
     try {
-      print('🔍 AuthRepository: Registering user with backend: ${user.uid}');
       // First store the token
       final token = await user.getIdToken();
       await _secureStorage.write(key: 'auth_token', value: token);
-      print('✅ AuthRepository: Stored auth token for user ${user.uid}');
 
       // Then try to register with backend
       try {
-        print('🔍 AuthRepository: Sending registration data to backend for ${user.uid}');
         final userData = {
           'email': user.email,
           'name': user.displayName ?? user.email?.split('@')[0] ?? 'User',
           'firebase_uid': user.uid,
         };
-        print('💾 AuthRepository: Registration data: $userData');
-        
+
         await _apiService.post('/api/auth/register', userData);
-        print('✅ AuthRepository: Successfully registered user with backend: ${user.uid}');
       } catch (e) {
-        print('❌ AuthRepository: Failed to register user with backend: $e');
         // We still have the token stored, so the user can use the app
         // even if backend registration fails
       }
@@ -131,7 +125,9 @@ class AuthRepository {
 
       // Clear any stored tokens
       await _secureStorage.delete(key: 'auth_token');
-    } catch (e) {}
+    } catch (e) {
+      throw Exception('Failed to clear auth cache');
+    }
   }
 
   // Sign up with email/password with cache clearing

@@ -35,27 +35,19 @@ class _TransactionAnalysisWidgetState extends State<TransactionAnalysisWidget>
   void initState() {
     super.initState();
 
-    print('🏁 [TransactionAnalysisWidget] Widget initialized');
-
     // If we received analysis via constructor, use it
     if (widget.analysis != null) {
       _cachedAnalysis = widget.analysis;
-      print('📋 [TransactionAnalysisWidget] Using provided analysis data');
     }
 
     // Explicitly request analysis data when widget initializes, but only once
     WidgetsBinding.instance.addPostFrameCallback((_) {
       // Only request data if we don't already have cached data
       if (_cachedAnalysis == null) {
-        print(
-            '🔍 [TransactionAnalysisWidget] Requesting initial analysis data');
         context
             .read<TransactionAnalysisBloc>()
             .add(const LoadTransactionAnalysis());
-      } else {
-        print(
-            '📋 [TransactionAnalysisWidget] Using cached analysis data, skipping initial request');
-      }
+      } else {}
     });
   }
 
@@ -68,7 +60,6 @@ class _TransactionAnalysisWidgetState extends State<TransactionAnalysisWidget>
       setState(() {
         _cachedAnalysis = widget.analysis;
       });
-      print('🔄 [TransactionAnalysisWidget] Updated analysis from props');
     }
   }
 
@@ -79,14 +70,12 @@ class _TransactionAnalysisWidgetState extends State<TransactionAnalysisWidget>
   Widget build(BuildContext context) {
     super.build(context); // Required for AutomaticKeepAliveClientMixin
 
-    print('🔄 [TransactionAnalysisWidget] Building widget');
-
     return BlocBuilder<TransactionAnalysisBloc, TransactionAnalysisState>(
       buildWhen: (previous, current) {
         // Only rebuild on state changes that are relevant to analysis
         if (_isFirstBuild) {
           _isFirstBuild = false;
-          print('1️⃣ [TransactionAnalysisWidget] First build detected');
+
           return true;
         }
 
@@ -100,8 +89,7 @@ class _TransactionAnalysisWidgetState extends State<TransactionAnalysisWidget>
             final currAnalysis = current.analysis;
             // Only rebuild if the analysis data actually changed
             final shouldRebuild = prevAnalysis != currAnalysis;
-            print(
-                '🔍 [TransactionAnalysisWidget] Same state types, checking data: shouldRebuild=$shouldRebuild');
+
             return shouldRebuild;
           }
 
@@ -120,13 +108,10 @@ class _TransactionAnalysisWidgetState extends State<TransactionAnalysisWidget>
 
             final shouldRebuild =
                 analysisChanged || refreshStateChanged || errorChanged;
-            print(
-                '🔍 [TransactionAnalysisWidget] Combined state: shouldRebuild=$shouldRebuild (analysisChanged=$analysisChanged, refreshStateChanged=$refreshStateChanged, errorChanged=$errorChanged)');
+
             return shouldRebuild;
           }
 
-          print(
-              '🔍 [TransactionAnalysisWidget] Same state types, skipping rebuild: ${current.runtimeType}');
           return false;
         }
 
@@ -135,24 +120,16 @@ class _TransactionAnalysisWidgetState extends State<TransactionAnalysisWidget>
             current is TransactionAnalysisError ||
             current is TransactionCombinedState;
 
-        print(
-            '🧐 [TransactionAnalysisWidget] Should rebuild: $shouldRebuild (State: ${current.runtimeType})');
         return shouldRebuild;
       },
       builder: (context, state) {
-        print(
-            '🏗️ [TransactionAnalysisWidget] Building with state: ${state.runtimeType}');
-
         // Handle combined state
         if (state is TransactionCombinedState) {
           if (state.analysis != null) {
             _cachedAnalysis = state.analysis; // Cache the analysis
-            print(
-                '💾 [TransactionAnalysisWidget] Cached analysis data from combined state');
 
             // If we're refreshing, show a loading indicator
             if (state.isRefreshing) {
-              print('⏳ [TransactionAnalysisWidget] Showing refresh indicator');
               return Stack(
                 children: [
                   _buildAnalysisContent(state.analysis!),
@@ -342,8 +319,7 @@ class _TransactionAnalysisWidgetState extends State<TransactionAnalysisWidget>
                     icon: const Icon(Icons.refresh, color: Colors.white70),
                     onPressed: () {
                       // Trigger manual refresh
-                      print(
-                          '👆 [TransactionAnalysisWidget] Manual refresh button pressed');
+
                       context
                           .read<TransactionAnalysisBloc>()
                           .add(const ManualRefreshAnalysis());
@@ -351,8 +327,6 @@ class _TransactionAnalysisWidgetState extends State<TransactionAnalysisWidget>
                       // Update last refresh time
                       setState(() {
                         _lastRefreshTime = DateTime.now();
-                        print(
-                            '⏱️ [TransactionAnalysisWidget] Updated last refresh time to: ${_lastRefreshTime.toString()}');
                       });
                     },
                     tooltip: 'Refresh Analysis',

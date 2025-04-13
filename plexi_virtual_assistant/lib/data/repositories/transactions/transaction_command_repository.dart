@@ -16,8 +16,8 @@ class TransactionCommandRepository {
   bool _isInvalidatingCaches = false;
 
   TransactionCommandRepository(
-    this._apiService, 
-    this._cache, 
+    this._apiService,
+    this._cache,
     this._queryRepository,
     this._analysisRepository,
   );
@@ -38,9 +38,6 @@ class TransactionCommandRepository {
       // Clean the category string to remove any enum prefix
       final cleanCategory = _cleanCategoryString(category);
 
-      print(
-          '📝 [TransactionCommandRepository] Logging transaction: $amount, $cleanCategory, $description');
-
       // Get current user ID
       final userId = _apiService.getCurrentUserId();
       if (userId == null) {
@@ -57,31 +54,23 @@ class TransactionCommandRepository {
 
       // Send the transaction to the server
       await _apiService.post('/budget/transactions/add', transactionData);
-      print('✅ [TransactionCommandRepository] Transaction logged successfully');
 
       // Invalidate all transaction-related caches except monthly analysis
-      print('🗑️ [TransactionCommandRepository] Invalidating transaction caches');
+
       invalidateTransactionCaches();
 
       // Force refresh the monthly transactions to ensure up-to-date categories
-      print(
-          '🔄 [TransactionCommandRepository] Force refreshing monthly data after logging transaction');
+
       await _queryRepository.getMonthlyTransactions(forceRefresh: true);
 
       // Force refresh the analysis data to ensure it includes the new transaction
       // but don't await it to avoid blocking the UI
-      print(
-          '🔄 [TransactionCommandRepository] Refreshing analysis data in background');
-      _analysisRepository.forceRefreshAnalysis().then((analysis) {
-        print(
-            '✅ [TransactionCommandRepository] Analysis data refreshed after transaction logged');
-        print('📊 [TransactionCommandRepository] Updated analysis data: needs=${analysis.actual.needs}, wants=${analysis.actual.wants}, savings=${analysis.actual.savings}');
-      });
+
+      _analysisRepository.forceRefreshAnalysis().then((analysis) {});
 
       // Also refresh the daily total
       await _queryRepository.getDailyTotal(forceRefresh: true);
     } catch (e) {
-      print('❌ [TransactionCommandRepository] Error logging transaction: $e');
       throw Exception('Failed to log transaction: $e');
     }
   }
@@ -196,7 +185,6 @@ class TransactionCommandRepository {
 
       throw Exception('Failed to add transaction: Invalid response format');
     } catch (e) {
-      print('❌ [TransactionCommandRepository] Error adding transaction: $e');
       throw Exception('Failed to add transaction: $e');
     }
   }
@@ -205,29 +193,21 @@ class TransactionCommandRepository {
   void invalidateTransactionCaches() {
     // Prevent redundant invalidations
     if (_isInvalidatingCaches) {
-      print(
-          '🔄 [TransactionCommandRepository] Cache invalidation already in progress, skipping');
       return;
     }
 
     _isInvalidatingCaches = true;
 
     try {
-      print('🗑️ [TransactionCommandRepository] Invalidating transaction caches');
       _cache.invalidateTransactionCaches();
-      
+
       // IMPORTANT: Also invalidate the analysis cache to ensure it gets refreshed
-      print('🗑️ [TransactionCommandRepository] Explicitly invalidating analysis cache');
+
       _cache.invalidate('transaction_analysis_current');
-      
+
       // Force refresh the analysis data
-      print('🔄 [TransactionCommandRepository] Triggering analysis refresh');
-      _analysisRepository.forceRefreshAnalysis().then((analysis) {
-        print('✅ [TransactionCommandRepository] Analysis refreshed with new values:');
-        print('  - needs: ${analysis.actual.needs}');
-        print('  - wants: ${analysis.actual.wants}');
-        print('  - savings: ${analysis.actual.savings}');
-      });
+
+      _analysisRepository.forceRefreshAnalysis().then((analysis) {});
     } finally {
       _isInvalidatingCaches = false;
     }
