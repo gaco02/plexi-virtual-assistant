@@ -149,7 +149,7 @@ class _CalorieSummaryState extends State<CalorieSummary> {
         // Handle error state
         if (state.status == CalorieStatus.error) {
           return Card(
-            color: Colors.red.withOpacity(0.1),
+            color: Colors.red.withAlpha(77),
             child: Padding(
               padding: const EdgeInsets.all(16.0),
               child: Center(

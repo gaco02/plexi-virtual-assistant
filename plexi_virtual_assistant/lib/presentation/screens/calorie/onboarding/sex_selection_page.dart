@@ -31,7 +31,7 @@ class SexSelectionPageState extends State<SexSelectionPage> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Text(
-            'What is your gender',
+            'How should I personalize your plan?',
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
@@ -39,7 +39,7 @@ class SexSelectionPageState extends State<SexSelectionPage> {
           ),
           const SizedBox(height: 24),
           const Text(
-            'Select your gender to help us calculate your daily calorie needs.',
+            'This helps me calculate your calorie needs more accurately.',
             textAlign: TextAlign.center,
             style: TextStyle(
               color: Colors.white70,
@@ -84,7 +84,7 @@ class SexSelectionPageState extends State<SexSelectionPage> {
         width: 140,
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: isSelected ? Colors.blue.withOpacity(0.3) : Colors.black26,
+          color: isSelected ? Colors.blue.withAlpha(77) : Colors.black26,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: isSelected ? Colors.blue : Colors.transparent,
@@ -124,7 +124,7 @@ class SexSelectionPageState extends State<SexSelectionPage> {
         width: 300,
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: isSelected ? Colors.blue.withOpacity(0.3) : Colors.black26,
+          color: isSelected ? Colors.blue.withAlpha(77) : Colors.black26,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: isSelected ? Colors.blue : Colors.transparent,

@@ -92,14 +92,14 @@ class _LoginScreenState extends State<LoginScreen>
         child: ElevatedButton(
           onPressed: isProcessing ? null : onPressed,
           style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.white.withOpacity(0.15),
+            backgroundColor: Colors.white.withAlpha(77),
             foregroundColor: Colors.white,
             elevation: 0,
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(28),
               side: BorderSide(
-                color: Colors.white.withOpacity(0.2),
+                color: Colors.white.withAlpha(77),
                 width: 1,
               ),
             ),
@@ -184,7 +184,7 @@ class _LoginScreenState extends State<LoginScreen>
                                 borderRadius: BorderRadius.circular(20),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: Colors.black.withOpacity(0.2),
+                                    color: Colors.black.withAlpha(77),
                                     blurRadius: 10,
                                     offset: const Offset(0, 5),
                                   ),
@@ -247,7 +247,7 @@ class _LoginScreenState extends State<LoginScreen>
               // Loading overlay
               if (_isLoading)
                 Container(
-                  color: Colors.black.withOpacity(0.3),
+                  color: Colors.black.withAlpha(77),
                   child: const Center(
                     child: CircularProgressIndicator(
                       valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
@@ -313,30 +313,30 @@ class _EmailLoginScreenState extends State<EmailLoginScreen> {
           style: const TextStyle(color: Colors.white),
           decoration: InputDecoration(
             labelText: label,
-            labelStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
+            labelStyle: TextStyle(color: Colors.white.withAlpha(77)),
             floatingLabelBehavior: FloatingLabelBehavior.always,
             contentPadding:
                 const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
             filled: true,
-            fillColor: Colors.white.withOpacity(0.15),
+            fillColor: Colors.white.withAlpha(77),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(28),
               borderSide: BorderSide(
-                color: Colors.white.withOpacity(0.2),
+                color: Colors.white.withAlpha(77),
                 width: 1,
               ),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(28),
               borderSide: BorderSide(
-                color: Colors.white.withOpacity(0.2),
+                color: Colors.white.withAlpha(77),
                 width: 1,
               ),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(28),
               borderSide: BorderSide(
-                color: Colors.white.withOpacity(0.5),
+                color: Colors.white.withAlpha(77),
                 width: 2,
               ),
             ),
@@ -369,13 +369,13 @@ class _EmailLoginScreenState extends State<EmailLoginScreen> {
       ),
       onPressed: isProcessing ? null : onPressed,
       style: ElevatedButton.styleFrom(
-        backgroundColor: Colors.white.withOpacity(0.15),
+        backgroundColor: Colors.white.withAlpha(77),
         foregroundColor: Colors.white,
         minimumSize: const Size(double.infinity, 56),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(28),
           side: BorderSide(
-            color: Colors.white.withOpacity(0.2),
+            color: Colors.white.withAlpha(77),
             width: 1,
           ),
         ),
@@ -489,7 +489,7 @@ class _EmailLoginScreenState extends State<EmailLoginScreen> {
                       // Toggle Sign In / Create
                       Container(
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.1),
+                          color: Colors.white.withAlpha(77),
                           borderRadius: BorderRadius.circular(16),
                         ),
                         padding: const EdgeInsets.all(16),
@@ -501,7 +501,7 @@ class _EmailLoginScreenState extends State<EmailLoginScreen> {
                                   ? 'Already have an account?'
                                   : 'Don\'t have an account?',
                               style: TextStyle(
-                                color: Colors.white.withOpacity(0.7),
+                                color: Colors.white.withAlpha(77),
                               ),
                             ),
                             TextButton(

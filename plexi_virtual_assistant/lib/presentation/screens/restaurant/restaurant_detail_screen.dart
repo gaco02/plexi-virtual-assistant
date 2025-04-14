@@ -195,7 +195,7 @@ class _RestaurantDetailScreenState extends State<RestaurantDetailScreen> {
                                 end: Alignment.bottomCenter,
                                 colors: [
                                   Colors.transparent,
-                                  Colors.black.withOpacity(0.7),
+                                  Colors.black.withAlpha(77),
                                 ],
                               ),
                             ),
@@ -380,7 +380,7 @@ class _RestaurantDetailScreenState extends State<RestaurantDetailScreen> {
                                     (highlight) => Chip(
                                       label: Text(highlight),
                                       backgroundColor:
-                                          Colors.blue.withOpacity(0.2),
+                                          Colors.blue.withAlpha(77),
                                       labelStyle:
                                           const TextStyle(color: Colors.white),
                                     ),

@@ -39,7 +39,7 @@ class _DateSelectorState extends State<DateSelector> {
   @override
   Widget build(BuildContext context) {
     final today = DateTime.now();
-    
+
     // Generate dates for the past 30 days including today
     final dates = List.generate(
       30, // Show last 30 days
@@ -61,8 +61,7 @@ class _DateSelectorState extends State<DateSelector> {
               margin: const EdgeInsets.symmetric(horizontal: 4),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
-                color:
-                    isSelected ? Colors.orange : Colors.white.withOpacity(0.1),
+                color: isSelected ? Colors.orange : Colors.white.withAlpha(77),
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Column(

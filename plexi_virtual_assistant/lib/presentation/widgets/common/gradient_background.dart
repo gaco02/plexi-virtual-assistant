@@ -109,7 +109,7 @@ class _AnimatedDarkGradientState extends State<_AnimatedDarkGradient>
         height: size,
         decoration: BoxDecoration(
           gradient: RadialGradient(
-            colors: [color.withOpacity(0.2), Colors.transparent],
+            colors: [color.withAlpha(77), Colors.transparent],
             radius: 0.85,
           ),
         ),

@@ -200,7 +200,7 @@ class _HomeScreenState extends State<HomeScreen>
                           ),
                         );
                       },
-                      backgroundColor: Colors.black.withOpacity(0.5),
+                      backgroundColor: Colors.black.withAlpha(77),
                       child: const Icon(
                         Icons.chat_bubble_outline,
                         color: Colors.white,

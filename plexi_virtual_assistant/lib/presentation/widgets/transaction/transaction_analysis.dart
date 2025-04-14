@@ -153,7 +153,7 @@ class _TransactionAnalysisWidgetState extends State<TransactionAnalysisWidget>
                     child: Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: Colors.red.withOpacity(0.8),
+                        color: Colors.red.withAlpha(77),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
@@ -217,7 +217,7 @@ class _TransactionAnalysisWidgetState extends State<TransactionAnalysisWidget>
                   child: Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: Colors.red.withOpacity(0.8),
+                      color: Colors.red.withAlpha(77),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
@@ -390,9 +390,9 @@ class _TransactionAnalysisWidgetState extends State<TransactionAnalysisWidget>
     return Container(
       margin: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: cardColor.withOpacity(0.15),
+        color: cardColor.withAlpha(77),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: cardColor.withOpacity(0.3), width: 1),
+        border: Border.all(color: cardColor.withAlpha(77), width: 1),
       ),
       child: Padding(
         padding: const EdgeInsets.all(12),
@@ -402,7 +402,7 @@ class _TransactionAnalysisWidgetState extends State<TransactionAnalysisWidget>
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: cardColor.withOpacity(0.2),
+                color: cardColor.withAlpha(77),
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Icon(iconData, color: cardColor, size: 20),
@@ -430,7 +430,7 @@ class _TransactionAnalysisWidgetState extends State<TransactionAnalysisWidget>
                       padding: const EdgeInsets.symmetric(
                           horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
-                        color: cardColor.withOpacity(0.2),
+                        color: cardColor.withAlpha(77),
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(

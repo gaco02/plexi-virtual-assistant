@@ -7,7 +7,7 @@ class WeatherSummary extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       margin: const EdgeInsets.all(16),
-      color: Colors.white.withOpacity(0.1),
+      color: Colors.white.withAlpha(77),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(

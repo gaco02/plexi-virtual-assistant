@@ -83,7 +83,7 @@ class _BudgetSummaryState extends State<BudgetSummary> {
 
         if (state is BudgetError) {
           return Card(
-            color: Colors.red.withOpacity(0.1),
+            color: Colors.red.withAlpha(77),
             child: Padding(
               padding: const EdgeInsets.all(16.0),
               child: Center(
@@ -148,7 +148,7 @@ class _BudgetSummaryState extends State<BudgetSummary> {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  
+
                   // Today's spending section
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -172,7 +172,7 @@ class _BudgetSummaryState extends State<BudgetSummary> {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  
+
                   _buildBudgetBar(
                     'Needs (50%)',
                     analysis.actual.needs,

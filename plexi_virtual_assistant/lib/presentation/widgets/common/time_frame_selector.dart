@@ -18,7 +18,7 @@ class TimeFrameSelector extends StatelessWidget {
     return Container(
       height: 40,
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.1),
+        color: Colors.white.withAlpha(77),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
@@ -30,7 +30,7 @@ class TimeFrameSelector extends StatelessWidget {
               child: Container(
                 decoration: BoxDecoration(
                   color: isSelected
-                      ? Colors.white.withOpacity(0.2)
+                      ? Colors.white.withAlpha(77)
                       : Colors.transparent,
                   borderRadius: BorderRadius.circular(20),
                 ),

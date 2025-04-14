@@ -123,7 +123,7 @@ class FoodItemCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.2),
+        color: color.withAlpha(77),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
@@ -150,7 +150,7 @@ class FoodItemCard extends StatelessWidget {
           Text(
             label,
             style: TextStyle(
-              color: color.withOpacity(0.8),
+              color: color.withAlpha(77),
               fontSize: 12,
             ),
           ),

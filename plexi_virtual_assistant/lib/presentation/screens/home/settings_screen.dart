@@ -96,9 +96,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               width: double.infinity,
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.1),
+                color: Colors.white.withAlpha(77),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white.withOpacity(0.2)),
+                border: Border.all(color: Colors.white.withAlpha(77)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -146,10 +146,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
             Center(
               child: ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white.withOpacity(0.15),
+                  backgroundColor: Colors.white.withAlpha(77),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(20),
-                    side: BorderSide(color: Colors.white.withOpacity(0.2)),
+                    side: BorderSide(color: Colors.white.withAlpha(77)),
                   ),
                 ),
                 icon: const Icon(Icons.edit, color: Colors.white),
@@ -204,9 +204,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               : TextInputType.number,
           decoration: InputDecoration(
             hintText: 'Enter $title',
-            hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+            hintStyle: TextStyle(color: Colors.white.withAlpha(77)),
             enabledBorder: UnderlineInputBorder(
-              borderSide: BorderSide(color: Colors.white.withOpacity(0.3)),
+              borderSide: BorderSide(color: Colors.white.withAlpha(77)),
             ),
             focusedBorder: const UnderlineInputBorder(
               borderSide: BorderSide(color: Colors.white),
@@ -354,11 +354,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
             'Logout',
             style: TextStyle(color: Colors.white),
           ),
-          tileColor: Colors.white.withOpacity(0.15),
+          tileColor: Colors.white.withAlpha(77),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(28),
             side: BorderSide(
-              color: Colors.white.withOpacity(0.2),
+              color: Colors.white.withAlpha(77),
               width: 1,
             ),
           ),

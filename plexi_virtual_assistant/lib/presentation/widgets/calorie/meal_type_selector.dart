@@ -27,12 +27,11 @@ class MealTypeSelector extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
                 color: isSelected
-                    ? Colors.white.withOpacity(0.2)
+                    ? Colors.white.withAlpha(77)
                     : Colors.transparent,
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color:
-                      isSelected ? Colors.white : Colors.white.withOpacity(0.1),
+                  color: isSelected ? Colors.white : Colors.white.withAlpha(77),
                   width: 1,
                 ),
               ),

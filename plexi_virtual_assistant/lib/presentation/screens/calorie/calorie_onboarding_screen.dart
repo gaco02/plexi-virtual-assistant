@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:plexi_virtual_assistant/presentation/screens/calorie/onboarding/activity_level_page.dart';
 import 'package:plexi_virtual_assistant/presentation/screens/calorie/onboarding/sex_selection_page.dart';
+import 'package:plexi_virtual_assistant/presentation/screens/calorie/onboarding/weight_goal_page.dart';
 import '../../widgets/common/app_background.dart';
 import '../../widgets/common/custom_button.dart';
 import '../../widgets/common/custom_text_field.dart';
@@ -89,8 +90,8 @@ class _CalorieOnboardingScreenState extends State<CalorieOnboardingScreen> {
           });
         },
       ),
-      _WeightGoalPage(
-        key: GlobalKey<_WeightGoalPageState>(),
+      WeightGoalPage(
+        key: GlobalKey<WeightGoalPageState>(),
         onWeightGoalSelected: (weightGoal) {
           setState(() {
             _weightGoal = weightGoal;
@@ -182,11 +183,12 @@ class _CalorieOnboardingScreenState extends State<CalorieOnboardingScreen> {
           (weightInputPage.key as GlobalKey<WeightInputPageState>).currentState;
       if (state != null) {
         state.submitForm();
-        // Navigate after form submission
-        _pageController.nextPage(
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
-        );
+        if (state.isNextButtonEnabled) {
+          _pageController.nextPage(
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+          );
+        }
       }
       return;
     } else if (_pages[_currentPage] is HeightInputPage) {
@@ -195,11 +197,13 @@ class _CalorieOnboardingScreenState extends State<CalorieOnboardingScreen> {
           (heightInputPage.key as GlobalKey<HeightInputPageState>).currentState;
       if (state != null) {
         state.submitForm();
-        // Navigate after form submission
-        _pageController.nextPage(
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
-        );
+        // Only navigate if the height input is valid
+        if (state.isNextButtonEnabled) {
+          _pageController.nextPage(
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+          );
+        }
       }
       return;
     } else if (_pages[_currentPage] is AgeInputPage) {
@@ -208,11 +212,13 @@ class _CalorieOnboardingScreenState extends State<CalorieOnboardingScreen> {
           (ageInputPage.key as GlobalKey<AgeInputPageState>).currentState;
       if (state != null) {
         state.submitForm();
-        // Navigate after form submission
-        _pageController.nextPage(
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
-        );
+        // Only navigate if the age input is valid
+        if (state.isNextButtonEnabled) {
+          _pageController.nextPage(
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+          );
+        }
       }
       return;
     } else if (_pages[_currentPage] is SexSelectionPage) {
@@ -241,10 +247,9 @@ class _CalorieOnboardingScreenState extends State<CalorieOnboardingScreen> {
         );
       }
       return;
-    } else if (_pages[_currentPage] is _WeightGoalPage) {
-      final state =
-          (_pages[_currentPage].key as GlobalKey<_WeightGoalPageState>)
-              .currentState;
+    } else if (_pages[_currentPage] is WeightGoalPage) {
+      final state = (_pages[_currentPage].key as GlobalKey<WeightGoalPageState>)
+          .currentState;
       if (state != null) {
         state.submitForm();
         // Navigate after form submission
@@ -289,7 +294,7 @@ class _CalorieOnboardingScreenState extends State<CalorieOnboardingScreen> {
                     horizontal: 24.0, vertical: 16.0),
                 child: LinearProgressIndicator(
                   value: (_currentPage + 1) / _pages.length,
-                  backgroundColor: Colors.white.withOpacity(0.2),
+                  backgroundColor: Colors.white.withAlpha(77),
                   valueColor: const AlwaysStoppedAnimation<Color>(Colors.blue),
                   minHeight: 6,
                   borderRadius: BorderRadius.circular(3),
@@ -377,144 +382,6 @@ class _WelcomePage extends StatelessWidget {
   }
 }
 
-class _WeightGoalPage extends StatefulWidget {
-  final Function(WeightGoal) onWeightGoalSelected;
-
-  const _WeightGoalPage({
-    Key? key,
-    required this.onWeightGoalSelected,
-  }) : super(key: key);
-
-  @override
-  State<_WeightGoalPage> createState() => _WeightGoalPageState();
-}
-
-class _WeightGoalPageState extends State<_WeightGoalPage> {
-  WeightGoal? _selectedGoal;
-
-  void submitForm() {
-    if (_selectedGoal != null) {
-      widget.onWeightGoalSelected(_selectedGoal!);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(24.0),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            'What goal do you have in mind?',
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-          ),
-          const SizedBox(height: 24),
-          const Text(
-            'This will help us calculate your optimal calorie and macronutrient targets.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Colors.white70,
-              fontSize: 16,
-            ),
-          ),
-          const SizedBox(height: 32),
-          _buildGoalOption(
-            WeightGoal.lose,
-            'Lose Weight',
-            'Create a calorie deficit to lose weight',
-            Icons.trending_down,
-          ),
-          _buildGoalOption(
-            WeightGoal.maintain,
-            'Maintain Weight',
-            'Stay at your current weight',
-            Icons.trending_flat,
-          ),
-          _buildGoalOption(
-            WeightGoal.gain,
-            'Gain Weight',
-            'Create a calorie surplus to gain weight',
-            Icons.trending_up,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildGoalOption(
-    WeightGoal goal,
-    String title,
-    String description,
-    IconData icon,
-  ) {
-    final isSelected = _selectedGoal == goal;
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          _selectedGoal = goal;
-        });
-      },
-      child: Container(
-        width: double.infinity,
-        margin: const EdgeInsets.symmetric(vertical: 8),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: isSelected ? Colors.blue.withOpacity(0.3) : Colors.black26,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isSelected ? Colors.blue : Colors.transparent,
-            width: 2,
-          ),
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.blue.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(
-                icon,
-                color: Colors.white,
-                size: 24,
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    description,
-                    style: const TextStyle(
-                      color: Colors.white70,
-                      fontSize: 14,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _CalorieTargetPage extends StatelessWidget {
   final double? weight;
   final double? height;
@@ -588,9 +455,9 @@ class _CalorieTargetPage extends StatelessWidget {
                           child: CircularProgressIndicator(
                             value: 1.0,
                             strokeWidth: 12,
-                            backgroundColor: Colors.white.withOpacity(0.1),
+                            backgroundColor: Colors.white.withAlpha(77),
                             valueColor: const AlwaysStoppedAnimation<Color>(
-                                Colors.green),
+                                Colors.orange),
                           ),
                         ),
                         Column(
@@ -630,7 +497,7 @@ class _CalorieTargetPage extends StatelessWidget {
                       width: 80,
                       height: 80,
                       decoration: BoxDecoration(
-                        color: Colors.yellow.withOpacity(0.2),
+                        color: Colors.yellow.withAlpha(77),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: const Icon(

@@ -108,13 +108,13 @@ class CalorieChart extends StatelessWidget {
               ),
               belowBarData: BarAreaData(
                 show: true,
-                color: Colors.blue.withOpacity(0.2),
+                color: Colors.blue.withAlpha(77),
               ),
             ),
           ],
           lineTouchData: LineTouchData(
             touchTooltipData: LineTouchTooltipData(
-              getTooltipColor: (group) => Colors.blueGrey.withOpacity(0.8),
+              getTooltipColor: (group) => Colors.blueGrey.withAlpha(77),
               getTooltipItems: (List<LineBarSpot> touchedSpots) {
                 return touchedSpots.map((spot) {
                   final entry = limitedEntries[spot.x.toInt()];

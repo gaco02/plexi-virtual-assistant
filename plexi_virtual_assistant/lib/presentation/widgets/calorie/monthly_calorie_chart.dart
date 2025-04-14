@@ -416,9 +416,9 @@ class _WeeklyCalorieChartState extends State<WeeklyCalorieChart> {
     );
 
     // Define colors for different states
-    final Color normalColor = widget.barColor.withOpacity(0.7);
+    final Color normalColor = widget.barColor.withAlpha(77);
     final Color todayColor = Colors.greenAccent;
-    final Color excessColor = Colors.redAccent.withOpacity(0.8);
+    final Color excessColor = Colors.redAccent.withAlpha(77);
     final Color todayExcessColor = Colors.redAccent;
 
     return _visibleDays.asMap().entries.map((entry) {
@@ -451,7 +451,7 @@ class _WeeklyCalorieChartState extends State<WeeklyCalorieChart> {
         barRods: [
           BarChartRodData(
             toY: calories.toDouble(),
-            color: isHighlighted ? barColor.withOpacity(1.0) : barColor,
+            color: isHighlighted ? barColor.withAlpha(77) : barColor,
             width: 16,
             borderRadius: const BorderRadius.only(
               topLeft: Radius.circular(6),
@@ -460,7 +460,7 @@ class _WeeklyCalorieChartState extends State<WeeklyCalorieChart> {
             backDrawRodData: BackgroundBarChartRodData(
               show: true,
               toY: widget.targetCalories.toDouble(),
-              color: widget.backgroundColor.withOpacity(0.1),
+              color: widget.backgroundColor.withAlpha(77),
             ),
           ),
         ],

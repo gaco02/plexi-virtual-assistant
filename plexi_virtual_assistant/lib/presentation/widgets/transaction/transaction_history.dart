@@ -340,7 +340,7 @@ class _TransactionHistoryState extends State<TransactionHistory>
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: categoryColor.withOpacity(0.2),
+              color: categoryColor.withAlpha(77),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Center(
@@ -434,7 +434,7 @@ class _TransactionHistoryState extends State<TransactionHistory>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.2),
+        color: color.withAlpha(77),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
@@ -449,7 +449,7 @@ class _TransactionHistoryState extends State<TransactionHistory>
           Text(
             label,
             style: TextStyle(
-              color: color.withOpacity(0.8),
+              color: color.withAlpha(77),
               fontSize: 12,
             ),
           ),
@@ -712,7 +712,7 @@ class TransactionCategorySelector extends StatelessWidget {
                 onCategorySelected(category);
               },
               selectedColor: Theme.of(context).colorScheme.primary,
-              backgroundColor: Colors.blue.withOpacity(0.3),
+              backgroundColor: Colors.blue.withAlpha(77),
             ),
           );
         }).toList(),
@@ -833,9 +833,7 @@ class _DateSelectorState extends State<DateSelector> {
                   decoration: BoxDecoration(
                     color: isSelected
                         ? Theme.of(context).colorScheme.primary
-                        : (isToday
-                            ? Colors.blue
-                            : Colors.blue.withOpacity(0.3)),
+                        : (isToday ? Colors.blue : Colors.blue.withAlpha(77)),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Column(

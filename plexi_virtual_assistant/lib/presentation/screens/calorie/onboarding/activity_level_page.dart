@@ -53,26 +53,25 @@ class ActivityLevelPageState extends State<ActivityLevelPage> {
                   ActivityLevel.sedentary,
                   'Sedentary',
                   'Little or no exercise',
+                  '🏠',
                 ),
                 _buildActivityOption(
                   ActivityLevel.lightlyActive,
                   'Lightly active',
                   'Light exercise 1-3 days/week',
+                  '🚶',
                 ),
                 _buildActivityOption(
                   ActivityLevel.moderatelyActive,
                   'Moderately active',
                   'Moderate exercise 3-5 days/week',
+                  '🏋️',
                 ),
                 _buildActivityOption(
                   ActivityLevel.veryActive,
                   'Very active',
                   'Hard exercise 6-7 days/week',
-                ),
-                _buildActivityOption(
-                  ActivityLevel.extraActive,
-                  'Extra active',
-                  'Very hard exercise & physical job',
+                  '🏃',
                 ),
               ],
             ),
@@ -89,6 +88,7 @@ class ActivityLevelPageState extends State<ActivityLevelPage> {
     ActivityLevel level,
     String title,
     String description,
+    String emoji,
   ) {
     final isSelected = selectedLevel == level;
     return Padding(
@@ -102,31 +102,26 @@ class ActivityLevelPageState extends State<ActivityLevelPage> {
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: isSelected ? Colors.blue.withOpacity(0.3) : Colors.black26,
-            borderRadius: BorderRadius.circular(12),
+            color: isSelected
+                ? Colors.orange.withAlpha(77)
+                : Colors
+                    .black26, // Updated to use withAlpha instead of withOpacity
+            borderRadius: BorderRadius.circular(22),
             border: Border.all(
-              color: isSelected ? Colors.blue : Colors.transparent,
+              color: isSelected
+                  ? Colors.orange
+                  : const Color.fromARGB(255, 245, 177,
+                      87), // Added contour for unselected buttons
               width: 2,
             ),
           ),
           child: Row(
             children: [
-              Radio<ActivityLevel>(
-                value: level,
-                groupValue: selectedLevel,
-                onChanged: (value) {
-                  if (value != null) {
-                    setState(() {
-                      selectedLevel = value;
-                    });
-                  }
-                },
-                activeColor: Colors.blue,
-                fillColor: MaterialStateProperty.resolveWith<Color>(
-                  (states) => Colors.white,
-                ),
+              Text(
+                emoji,
+                style: const TextStyle(fontSize: 32),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 16),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -139,6 +134,7 @@ class ActivityLevelPageState extends State<ActivityLevelPage> {
                         fontWeight: FontWeight.bold,
                       ),
                     ),
+                    const SizedBox(height: 4),
                     Text(
                       description,
                       style: const TextStyle(

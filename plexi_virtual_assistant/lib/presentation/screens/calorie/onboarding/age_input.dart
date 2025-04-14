@@ -17,6 +17,26 @@ class AgeInputPage extends StatefulWidget {
 class AgeInputPageState extends State<AgeInputPage> {
   final GlobalKey<FormState> formKey = GlobalKey<FormState>();
   final TextEditingController ageController = TextEditingController();
+  bool isNextButtonEnabled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    ageController.addListener(_updateNextButtonState);
+  }
+
+  @override
+  void dispose() {
+    ageController.removeListener(_updateNextButtonState);
+    ageController.dispose();
+    super.dispose();
+  }
+
+  void _updateNextButtonState() {
+    setState(() {
+      isNextButtonEnabled = ageController.text.trim().isNotEmpty;
+    });
+  }
 
   /// Validate and submit the form. The parent screen calls this when the user taps "Next."
   void submitForm() {
@@ -46,12 +66,6 @@ class AgeInputPageState extends State<AgeInputPage> {
   }
 
   @override
-  void dispose() {
-    ageController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.all(24.0),
@@ -69,21 +83,12 @@ class AgeInputPageState extends State<AgeInputPage> {
             ),
             const SizedBox(height: 32),
             // Age input field (visible)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: CustomTextField(
-                hintText: 'Age',
-                controller: ageController,
-                keyboardType: TextInputType.number,
-                fillColor: Colors.transparent,
-              ),
+            CustomTextField(
+              hintText: 'Age',
+              controller: ageController,
+              keyboardType: TextInputType.number,
+              fillColor: Colors.transparent,
             ),
-            const SizedBox(height: 8),
-            // Any additional instructions or spacing can go here
           ],
         ),
       ),

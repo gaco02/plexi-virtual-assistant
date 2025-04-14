@@ -523,7 +523,7 @@ class _CalorieDetailsScreenState extends State<CalorieDetailsScreen>
                             Icon(
                               Icons.no_food,
                               size: 64,
-                              color: Colors.white.withOpacity(0.5),
+                              color: Colors.white.withAlpha(77),
                             ),
                             const SizedBox(height: 16),
                             const Text(
@@ -590,7 +590,7 @@ class _CalorieDetailsScreenState extends State<CalorieDetailsScreen>
             Icon(
               Icons.no_food,
               size: 64,
-              color: Colors.white.withOpacity(0.5),
+              color: Colors.white.withAlpha(77),
             ),
             const SizedBox(height: 16),
             Text(
