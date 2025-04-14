@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:plexi_virtual_assistant/presentation/screens/calorie/onboarding/activity_level_page.dart';
+import 'package:plexi_virtual_assistant/presentation/screens/calorie/onboarding/sex_selection_page.dart';
 import '../../widgets/common/app_background.dart';
 import '../../widgets/common/custom_button.dart';
 import '../../widgets/common/custom_text_field.dart';
@@ -7,6 +9,10 @@ import '../../../blocs/preferences/preferences_bloc.dart';
 import '../../../data/models/user_preferences.dart';
 import '../../../utils/nutrition_calculator.dart';
 import 'calorie_details_screen.dart';
+import 'onboarding/weight_input.dart';
+import 'onboarding/height_input.dart';
+import 'onboarding/age_input.dart';
+import 'onboarding/sex_selection_page.dart';
 
 class CalorieOnboardingScreen extends StatefulWidget {
   const CalorieOnboardingScreen({super.key});
@@ -43,40 +49,40 @@ class _CalorieOnboardingScreenState extends State<CalorieOnboardingScreen> {
   void _initializePages() {
     _pages = [
       _WelcomePage(onNext: _nextPage),
-      _WeightInputPage(
-        key: GlobalKey<_WeightInputPageState>(),
+      WeightInputPage(
+        key: GlobalKey<WeightInputPageState>(),
         onWeightSubmitted: (weight) {
           setState(() {
             _weight = weight;
           });
         },
       ),
-      _HeightInputPage(
-        key: GlobalKey<_HeightInputPageState>(),
+      HeightInputPage(
+        key: GlobalKey<HeightInputPageState>(),
         onHeightSubmitted: (height) {
           setState(() {
             _height = height;
           });
         },
       ),
-      _AgeInputPage(
-        key: GlobalKey<_AgeInputPageState>(),
+      AgeInputPage(
+        key: GlobalKey<AgeInputPageState>(),
         onAgeSubmitted: (age) {
           setState(() {
             _age = age;
           });
         },
       ),
-      _SexSelectionPage(
-        key: GlobalKey<_SexSelectionPageState>(),
+      SexSelectionPage(
+        key: GlobalKey<SexSelectionPageState>(),
         onSexSelected: (sex) {
           setState(() {
             _sex = sex;
           });
         },
       ),
-      _ActivityLevelPage(
-        key: GlobalKey<_ActivityLevelPageState>(),
+      ActivityLevelPage(
+        key: GlobalKey<ActivityLevelPageState>(),
         onActivityLevelSelected: (activityLevel) {
           setState(() {
             _activityLevel = activityLevel;
@@ -170,9 +176,48 @@ class _CalorieOnboardingScreenState extends State<CalorieOnboardingScreen> {
     FocusScope.of(context).unfocus();
 
     // Get current state of the form if it's a form page
-    if (_pages[_currentPage] is _WeightInputPage) {
+    if (_pages[_currentPage] is WeightInputPage) {
+      final weightInputPage = _pages[_currentPage] as WeightInputPage;
       final state =
-          (_pages[_currentPage].key as GlobalKey<_WeightInputPageState>)
+          (weightInputPage.key as GlobalKey<WeightInputPageState>).currentState;
+      if (state != null) {
+        state.submitForm();
+        // Navigate after form submission
+        _pageController.nextPage(
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+        );
+      }
+      return;
+    } else if (_pages[_currentPage] is HeightInputPage) {
+      final heightInputPage = _pages[_currentPage] as HeightInputPage;
+      final state =
+          (heightInputPage.key as GlobalKey<HeightInputPageState>).currentState;
+      if (state != null) {
+        state.submitForm();
+        // Navigate after form submission
+        _pageController.nextPage(
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+        );
+      }
+      return;
+    } else if (_pages[_currentPage] is AgeInputPage) {
+      final ageInputPage = _pages[_currentPage] as AgeInputPage;
+      final state =
+          (ageInputPage.key as GlobalKey<AgeInputPageState>).currentState;
+      if (state != null) {
+        state.submitForm();
+        // Navigate after form submission
+        _pageController.nextPage(
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+        );
+      }
+      return;
+    } else if (_pages[_currentPage] is SexSelectionPage) {
+      final state =
+          (_pages[_currentPage].key as GlobalKey<SexSelectionPageState>)
               .currentState;
       if (state != null) {
         state.submitForm();
@@ -183,47 +228,9 @@ class _CalorieOnboardingScreenState extends State<CalorieOnboardingScreen> {
         );
       }
       return;
-    } else if (_pages[_currentPage] is _HeightInputPage) {
+    } else if (_pages[_currentPage] is ActivityLevelPage) {
       final state =
-          (_pages[_currentPage].key as GlobalKey<_HeightInputPageState>)
-              .currentState;
-      if (state != null) {
-        state.submitForm();
-        // Navigate after form submission
-        _pageController.nextPage(
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
-        );
-      }
-      return;
-    } else if (_pages[_currentPage] is _AgeInputPage) {
-      final state = (_pages[_currentPage].key as GlobalKey<_AgeInputPageState>)
-          .currentState;
-      if (state != null) {
-        state.submitForm();
-        // Navigate after form submission
-        _pageController.nextPage(
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
-        );
-      }
-      return;
-    } else if (_pages[_currentPage] is _SexSelectionPage) {
-      final state =
-          (_pages[_currentPage].key as GlobalKey<_SexSelectionPageState>)
-              .currentState;
-      if (state != null) {
-        state.submitForm();
-        // Navigate after form submission
-        _pageController.nextPage(
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
-        );
-      }
-      return;
-    } else if (_pages[_currentPage] is _ActivityLevelPage) {
-      final state =
-          (_pages[_currentPage].key as GlobalKey<_ActivityLevelPageState>)
+          (_pages[_currentPage].key as GlobalKey<ActivityLevelPageState>)
               .currentState;
       if (state != null) {
         state.submitActivityLevel();
@@ -346,32 +353,18 @@ class _WelcomePage extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const CircleAvatar(
-            radius: 50,
-            backgroundColor: Colors.white24,
-            child: Icon(
-              Icons.restaurant_menu,
-              size: 60,
-              color: Colors.white,
-            ),
+          Image.asset(
+            'assets/images/calories/calorie_maskot.png',
+            height: 220,
           ),
           const SizedBox(height: 32),
           Text(
-            'Track Your Nutrition,\nTransform Your Health',
+            'Ill help you track your meals and find the right balance for your goals — one bite at a time 🍽️',
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
                 ),
-          ),
-          const SizedBox(height: 24),
-          Text(
-            'We\'ll help you track your calories and maintain a healthy diet based on your personal metrics.',
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: Colors.white70,
-              fontSize: 16,
-            ),
           ),
           const SizedBox(height: 48),
           CustomButton(
@@ -379,649 +372,6 @@ class _WelcomePage extends StatelessWidget {
             onPressed: onNext,
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _WeightInputPage extends StatefulWidget {
-  final Function(double weight) onWeightSubmitted;
-
-  const _WeightInputPage({
-    Key? key,
-    required this.onWeightSubmitted,
-  }) : super(key: key);
-
-  @override
-  _WeightInputPageState createState() => _WeightInputPageState();
-}
-
-class _WeightInputPageState extends State<_WeightInputPage> {
-  double _sliderValue = 70.0; // Default weight in kg
-
-  void submitForm() {
-    // Always use the slider value since we removed the text input
-    widget.onWeightSubmitted(_sliderValue);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(24.0),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            'What is your weight?',
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-          ),
-          const SizedBox(height: 32),
-          // Weight unit (kg)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.black26,
-              borderRadius: BorderRadius.circular(30),
-            ),
-            child: const Text(
-              'kg',
-              style: TextStyle(color: Colors.white, fontSize: 16),
-            ),
-          ),
-          const SizedBox(height: 24),
-          // Display the slider value
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: Colors.yellow.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Center(
-              child: Text(
-                _sliderValue.toStringAsFixed(0),
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 72,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 24),
-          // Slider
-          SliderTheme(
-            data: SliderTheme.of(context).copyWith(
-              activeTrackColor: Colors.blue,
-              inactiveTrackColor: Colors.white24,
-              thumbColor: Colors.white,
-              overlayColor: Colors.blue.withOpacity(0.3),
-              valueIndicatorColor: Colors.blue,
-              valueIndicatorTextStyle: const TextStyle(color: Colors.white),
-              showValueIndicator: ShowValueIndicator.always,
-            ),
-            child: Slider(
-              min: 40,
-              max: 200,
-              divisions: 160,
-              label: _sliderValue.toStringAsFixed(0),
-              value: _sliderValue,
-              onChanged: (value) {
-                setState(() {
-                  _sliderValue = value;
-                });
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _HeightInputPage extends StatefulWidget {
-  final Function(double height) onHeightSubmitted;
-
-  const _HeightInputPage({
-    Key? key,
-    required this.onHeightSubmitted,
-  }) : super(key: key);
-
-  @override
-  _HeightInputPageState createState() => _HeightInputPageState();
-}
-
-class _HeightInputPageState extends State<_HeightInputPage> {
-  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
-  final TextEditingController _heightController = TextEditingController();
-  double _sliderValue = 170.0; // Default height in cm
-
-  void submitForm() {
-    if (_formKey.currentState?.validate() ?? false) {
-      final height = double.parse(_heightController.text);
-      widget.onHeightSubmitted(height);
-    } else {
-      widget.onHeightSubmitted(_sliderValue);
-    }
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _heightController.text = _sliderValue.toString();
-  }
-
-  @override
-  void dispose() {
-    _heightController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(24.0),
-      child: Form(
-        key: _formKey,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              'What is your height?',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
-            ),
-            const SizedBox(height: 32),
-            // Height unit
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.black26,
-                borderRadius: BorderRadius.circular(30),
-              ),
-              child: const Text(
-                'cm',
-                style: TextStyle(color: Colors.white, fontSize: 16),
-              ),
-            ),
-            const SizedBox(height: 24),
-            // Display slider value
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: Colors.lightBlue.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Center(
-                child: Text(
-                  _sliderValue.toStringAsFixed(0),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 72,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-            // Slider
-            SliderTheme(
-              data: SliderTheme.of(context).copyWith(
-                activeTrackColor: Colors.blue,
-                inactiveTrackColor: Colors.white24,
-                thumbColor: Colors.white,
-                overlayColor: Colors.blue.withOpacity(0.3),
-                valueIndicatorColor: Colors.blue,
-                valueIndicatorTextStyle: const TextStyle(color: Colors.white),
-                showValueIndicator: ShowValueIndicator.always,
-              ),
-              child: Slider(
-                min: 120,
-                max: 220,
-                divisions: 100,
-                label: _sliderValue.toStringAsFixed(0),
-                value: _sliderValue,
-                onChanged: (value) {
-                  setState(() {
-                    _sliderValue = value;
-                    _heightController.text = value.toStringAsFixed(0);
-                  });
-                },
-              ),
-            ),
-            // Markers
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: const [
-                  Text('120', style: TextStyle(color: Colors.white54)),
-                  Text('145', style: TextStyle(color: Colors.white54)),
-                  Text('170', style: TextStyle(color: Colors.white54)),
-                  Text('195', style: TextStyle(color: Colors.white54)),
-                  Text('220', style: TextStyle(color: Colors.white54)),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-            // Hidden text form for validation
-            Opacity(
-              opacity: 0,
-              child: TextFormField(
-                controller: _heightController,
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter your height';
-                  }
-                  if (double.tryParse(value) == null) {
-                    return 'Please enter a valid number';
-                  }
-                  return null;
-                },
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// -------------------- UPDATED AGE PAGE (No "Continue" button) -------------------- //
-class _AgeInputPage extends StatefulWidget {
-  final Function(int age) onAgeSubmitted;
-
-  const _AgeInputPage({
-    Key? key,
-    required this.onAgeSubmitted,
-  }) : super(key: key);
-
-  @override
-  _AgeInputPageState createState() => _AgeInputPageState();
-}
-
-class _AgeInputPageState extends State<_AgeInputPage> {
-  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
-  final TextEditingController _ageController = TextEditingController();
-
-  /// Validate and submit the form. The parent screen calls this when the user taps "Next."
-  void submitForm() {
-    // Manual validation since CustomTextField doesn't support validator
-    if (_ageController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter your age')),
-      );
-      return;
-    }
-
-    try {
-      final age = int.parse(_ageController.text.trim());
-      if (age <= 0 || age > 120) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please enter a valid age (1-120)')),
-        );
-        return;
-      }
-      widget.onAgeSubmitted(age);
-    } catch (e) {
-      // Handle parsing error
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a valid number')),
-      );
-    }
-  }
-
-  @override
-  void dispose() {
-    _ageController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(24.0),
-      child: Form(
-        key: _formKey,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              'What\'s your age?',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
-            ),
-            const SizedBox(height: 32),
-            // Age input field (visible)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: CustomTextField(
-                hintText: 'Age',
-                controller: _ageController,
-                keyboardType: TextInputType.number,
-                fillColor: Colors.transparent,
-              ),
-            ),
-            const SizedBox(height: 8),
-            // Any additional instructions or spacing can go here
-          ],
-        ),
-      ),
-    );
-  }
-}
-// ------------------------------------------------------------------------------- //
-
-/// Choose gender
-class _SexSelectionPage extends StatefulWidget {
-  final Function(Sex) onSexSelected;
-
-  const _SexSelectionPage({
-    Key? key,
-    required this.onSexSelected,
-  }) : super(key: key);
-
-  @override
-  State<_SexSelectionPage> createState() => _SexSelectionPageState();
-}
-
-class _SexSelectionPageState extends State<_SexSelectionPage> {
-  Sex? _selectedSex;
-
-  void submitForm() {
-    if (_selectedSex != null) {
-      widget.onSexSelected(_selectedSex!);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(24.0),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            'What is your gender',
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-          ),
-          const SizedBox(height: 24),
-          const Text(
-            'Select your gender to help us calculate your daily calorie needs.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Colors.white70,
-              fontSize: 16,
-            ),
-          ),
-          const SizedBox(height: 32),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _buildGenderOption(
-                Sex.female,
-                'Female',
-                isSelected: _selectedSex == Sex.female,
-              ),
-              const SizedBox(width: 16),
-              _buildGenderOption(
-                Sex.male,
-                'Male',
-                isSelected: _selectedSex == Sex.male,
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          _buildPreferNotToSayOption(
-            isSelected: _selectedSex == Sex.other,
-          ),
-          const SizedBox(height: 32),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildGenderOption(Sex sex, String label, {required bool isSelected}) {
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          _selectedSex = sex;
-        });
-      },
-      child: Container(
-        width: 140,
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: isSelected ? Colors.blue.withOpacity(0.3) : Colors.black26,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isSelected ? Colors.blue : Colors.transparent,
-            width: 2,
-          ),
-        ),
-        child: Column(
-          children: [
-            Icon(
-              sex == Sex.female ? Icons.female : Icons.male,
-              color: Colors.white,
-              size: 48,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              label,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPreferNotToSayOption({required bool isSelected}) {
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          _selectedSex = Sex.other;
-        });
-      },
-      child: Container(
-        width: 300,
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: isSelected ? Colors.blue.withOpacity(0.3) : Colors.black26,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isSelected ? Colors.blue : Colors.transparent,
-            width: 2,
-          ),
-        ),
-        child: const Center(
-          child: Text(
-            'Prefer not to say',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ActivityLevelPage extends StatefulWidget {
-  final Function(ActivityLevel) onActivityLevelSelected;
-
-  const _ActivityLevelPage({
-    Key? key,
-    required this.onActivityLevelSelected,
-  }) : super(key: key);
-
-  @override
-  State<_ActivityLevelPage> createState() => _ActivityLevelPageState();
-}
-
-class _ActivityLevelPageState extends State<_ActivityLevelPage> {
-  ActivityLevel _selectedLevel = ActivityLevel.moderatelyActive;
-
-  /// The parent can call this when the user taps "Next" to finalize selection.
-  void submitActivityLevel() {
-    widget.onActivityLevelSelected(_selectedLevel);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      // Prevents bottom overflow by making the content scrollable.
-      child: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              'Your activity level',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
-            ),
-            const SizedBox(height: 24),
-            const Text(
-              'Select your typical activity level to help us calculate your daily calorie needs.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.white70,
-                fontSize: 16,
-              ),
-            ),
-            const SizedBox(height: 32),
-            Column(
-              children: [
-                _buildActivityOption(
-                  ActivityLevel.sedentary,
-                  'Sedentary',
-                  'Little or no exercise',
-                ),
-                _buildActivityOption(
-                  ActivityLevel.lightlyActive,
-                  'Lightly active',
-                  'Light exercise 1-3 days/week',
-                ),
-                _buildActivityOption(
-                  ActivityLevel.moderatelyActive,
-                  'Moderately active',
-                  'Moderate exercise 3-5 days/week',
-                ),
-                _buildActivityOption(
-                  ActivityLevel.veryActive,
-                  'Very active',
-                  'Hard exercise 6-7 days/week',
-                ),
-                _buildActivityOption(
-                  ActivityLevel.extraActive,
-                  'Extra active',
-                  'Very hard exercise & physical job',
-                ),
-              ],
-            ),
-            const SizedBox(height: 32),
-            // No "Continue" button here.
-            // We rely on the parent's Next button, which calls submitActivityLevel().
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildActivityOption(
-    ActivityLevel level,
-    String title,
-    String description,
-  ) {
-    final isSelected = _selectedLevel == level;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: GestureDetector(
-        onTap: () {
-          setState(() {
-            _selectedLevel = level;
-          });
-        },
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: isSelected ? Colors.blue.withOpacity(0.3) : Colors.black26,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: isSelected ? Colors.blue : Colors.transparent,
-              width: 2,
-            ),
-          ),
-          child: Row(
-            children: [
-              Radio<ActivityLevel>(
-                value: level,
-                groupValue: _selectedLevel,
-                onChanged: (value) {
-                  if (value != null) {
-                    setState(() {
-                      _selectedLevel = value;
-                    });
-                  }
-                },
-                activeColor: Colors.blue,
-                fillColor: MaterialStateProperty.resolveWith<Color>(
-                  (states) => Colors.white,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    Text(
-                      description,
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }
