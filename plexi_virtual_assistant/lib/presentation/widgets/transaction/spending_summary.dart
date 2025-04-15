@@ -178,7 +178,7 @@ class _SpendingSummaryState extends State<SpendingSummary>
             },
           ),
         ],
-        child: const SkeletonSpendingSummary(),
+        child: const SkeletonCalorieSummary(),
       );
     }
 

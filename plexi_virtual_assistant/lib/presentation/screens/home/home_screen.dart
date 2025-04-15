@@ -12,9 +12,10 @@ import '../../widgets/calorie/calorie_summary.dart';
 import '../../widgets/transaction/spending_summary.dart';
 import 'settings_screen.dart';
 import '../chat_screen.dart';
-import 'login_screen.dart';
+import '../loging/login_screen.dart';
 import '../../widgets/common/app_background.dart';
 import '../../../data/models/user_preferences.dart';
+import '../loging/login_screen.dart';
 
 // Create a route observer to detect when we return to this screen
 final RouteObserver<PageRoute> routeObserver = RouteObserver<PageRoute>();

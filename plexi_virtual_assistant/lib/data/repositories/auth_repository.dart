@@ -40,32 +40,57 @@ class AuthRepository {
 
   Future<UserCredential> signInWithGoogle() async {
     try {
+      print("DEBUG: Starting Google Sign-in process");
+
       // Ensure we're signed out before starting
       if (await _googleSignIn.isSignedIn()) {
+        print(
+            "DEBUG: User was already signed in with Google, signing out first");
         await _googleSignIn.signOut();
       }
 
+      print("DEBUG: Showing Google Sign-in dialog");
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
-      if (googleUser == null) throw Exception('Sign in canceled');
+
+      if (googleUser == null) {
+        print("DEBUG: Google sign-in was canceled by user or failed silently");
+        throw Exception('Sign in canceled');
+      }
+
+      print("DEBUG: Google Sign-in successful for user: ${googleUser.email}");
+      print("DEBUG: Getting auth tokens from Google");
 
       final GoogleSignInAuthentication googleAuth =
           await googleUser.authentication;
+
+      if (googleAuth.accessToken == null || googleAuth.idToken == null) {
+        print("DEBUG: Failed to get Google auth tokens");
+        throw Exception('Failed to get authentication tokens');
+      }
+
+      print("DEBUG: Successfully got Google auth tokens");
       final credential = GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
       );
 
+      print("DEBUG: Signing in with Firebase using Google credentials");
       final userCredential =
           await _firebaseAuth.signInWithCredential(credential);
 
       if (userCredential.user != null) {
+        print(
+            "DEBUG: Firebase sign-in successful for user: ${userCredential.user!.email}");
         final token = await userCredential.user!.getIdToken();
         await _secureStorage.write(key: 'auth_token', value: token);
         await registerUserWithBackend(userCredential.user!);
+      } else {
+        print("DEBUG: Firebase returned null user after sign-in");
       }
 
       return userCredential;
     } catch (e) {
+      print("DEBUG: Error during Google sign-in: $e");
       rethrow;
     }
   }

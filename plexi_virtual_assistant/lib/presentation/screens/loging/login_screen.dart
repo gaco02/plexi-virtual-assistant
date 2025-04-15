@@ -1,10 +1,10 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'dart:async';
-import 'dart:ui' as ui;
 import '../../../blocs/auth/auth_bloc.dart';
-import 'home_screen.dart';
-import '../../widgets/common/gradient_background.dart';
+import '../home/home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({Key? key}) : super(key: key);
@@ -15,47 +15,45 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen>
     with SingleTickerProviderStateMixin {
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
-
   bool _isLoading = false;
 
+  // Animation properties
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
 
-  // Combined full text with newline.
-  final String _fullText = "Hi, I'm Plexi\nYour AI Assistant";
-  String _displayText = '';
-  Timer? _timer;
+  final String _messageText =
+      "The more we chat, the more I grow - and soon I'll be able to help with even more.";
+  String _visibleText = '';
+  int _charIndex = 0;
+  bool _isTextComplete = false;
 
   @override
   void initState() {
     super.initState();
 
-    // Typing animation controller
+    // Text and fade animations
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 500),
       vsync: this,
     );
 
-    // Fade in the bottom buttons after text finishes typing
     _fadeAnimation =
         Tween<double>(begin: 0.0, end: 1.0).animate(_animationController);
 
-    // Start typing
-    _startTypingAnimation();
+    // Start text animation
+    _startTextAnimation();
   }
 
-  void _startTypingAnimation() {
-    int index = 0;
-    _timer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
-      if (index < _fullText.length) {
+  void _startTextAnimation() {
+    Timer.periodic(const Duration(milliseconds: 50), (timer) {
+      if (_charIndex < _messageText.length) {
         setState(() {
-          _displayText = _fullText.substring(0, index + 1);
+          _visibleText = _messageText.substring(0, _charIndex + 1);
+          _charIndex++;
         });
-        index++;
       } else {
         timer.cancel();
+        _isTextComplete = true;
         _animationController.forward(); // fade in the buttons
       }
     });
@@ -63,10 +61,7 @@ class _LoginScreenState extends State<LoginScreen>
 
   @override
   void dispose() {
-    _emailController.dispose();
-    _passwordController.dispose();
     _animationController.dispose();
-    _timer?.cancel();
     super.dispose();
   }
 
@@ -80,55 +75,32 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   Widget _buildLoginButton(
-    String text,
-    IconData icon,
-    VoidCallback onPressed,
-    bool isProcessing,
-  ) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(28),
-      child: BackdropFilter(
-        filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: ElevatedButton(
-          onPressed: isProcessing ? null : onPressed,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.white.withAlpha(77),
-            foregroundColor: Colors.white,
-            elevation: 0,
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(28),
-              side: BorderSide(
-                color: Colors.white.withAlpha(77),
-                width: 1,
-              ),
-            ),
-            minimumSize: const Size(double.infinity, 56),
+      String text, IconData icon, VoidCallback onPressed, bool isProcessing) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF1CD),
+        borderRadius: BorderRadius.circular(28),
+      ),
+      child: ElevatedButton.icon(
+        onPressed: isProcessing ? null : onPressed,
+        icon: Icon(icon, color: Colors.black87),
+        label: Text(
+          text,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: Colors.black87,
           ),
-          child: isProcessing
-              ? const SizedBox(
-                  height: 24,
-                  width: 24,
-                  child: CircularProgressIndicator(
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                    strokeWidth: 2.0,
-                  ),
-                )
-              : Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(icon, color: Colors.white, size: 24),
-                    const SizedBox(width: 12),
-                    Text(
-                      text,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ],
-                ),
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(28),
+          ),
+          minimumSize: const Size(double.infinity, 56),
         ),
       ),
     );
@@ -137,6 +109,7 @@ class _LoginScreenState extends State<LoginScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.black,
       // Listen for AuthBloc events
       body: BlocListener<AuthBloc, AuthState>(
         listener: (context, state) {
@@ -161,100 +134,87 @@ class _LoginScreenState extends State<LoginScreen>
             );
           }
         },
-        child: GradientBackground(
-          child: Stack(
-            children: [
-              SafeArea(
-                child: Column(
-                  children: [
-                    // Top Section (typing text + icon)
-                    Expanded(
-                      flex: 6,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 32.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const SizedBox(height: 60),
-                            Container(
-                              width: 80,
-                              height: 80,
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(20),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withAlpha(77),
-                                    blurRadius: 10,
-                                    offset: const Offset(0, 5),
-                                  ),
-                                ],
-                              ),
-                              child: const Icon(
-                                Icons.assistant,
-                                size: 50,
-                                color: Color(0xFF1a237e),
-                              ),
-                            ),
-                            const SizedBox(height: 40),
-                            Text(
-                              _displayText,
-                              style: const TextStyle(
-                                fontSize: 40,
-                                height: 1.2,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    // Bottom Section (buttons)
-                    Expanded(
-                      flex: 4,
-                      child: Padding(
-                        padding: const EdgeInsets.all(32.0),
-                        child: FadeTransition(
-                          opacity: _fadeAnimation,
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              _buildLoginButton(
-                                'Continue with Google',
-                                Icons.g_mobiledata,
-                                () => context
-                                    .read<AuthBloc>()
-                                    .add(SignInWithGoogleRequested()),
-                                _isLoading,
-                              ),
-                              const SizedBox(height: 16),
-                              _buildLoginButton(
-                                'Continue with Email',
-                                Icons.email_outlined,
-                                () => _showEmailLoginScreen(context),
-                                _isLoading,
-                              ),
-                            ],
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // Text message that animates
+                Expanded(
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          _visibleText,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 24,
+                            height: 1.3,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
                           ),
                         ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              // Loading overlay
-              if (_isLoading)
-                Container(
-                  color: Colors.black.withAlpha(77),
-                  child: const Center(
-                    child: CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        const SizedBox(height: 40),
+                        if (_isTextComplete)
+                          FadeTransition(
+                            opacity: _fadeAnimation,
+                            child: Image.asset(
+                              'assets/images/common/plexi_maskot1.png',
+                              width: 60,
+                              height: 60,
+                            ),
+                          ),
+                      ],
                     ),
                   ),
                 ),
-            ],
+
+                // Login buttons
+                FadeTransition(
+                  opacity: _fadeAnimation,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _buildLoginButton(
+                        'Continue with Google',
+                        Icons.g_mobiledata,
+                        () => context
+                            .read<AuthBloc>()
+                            .add(SignInWithGoogleRequested()),
+                        _isLoading,
+                      ),
+                      _buildLoginButton(
+                        'Sign in with Apple',
+                        Icons.apple,
+                        () {
+                          if (!_isLoading) {
+                            // Apple sign-in implementation will go here
+                            ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                    content: Text(
+                                        'Apple sign-in not implemented yet')));
+                          }
+                        },
+                        _isLoading,
+                      ),
+                      _buildLoginButton(
+                        'Sign in with Email',
+                        Icons.email,
+                        () {
+                          if (!_isLoading) {
+                            _showEmailLoginScreen(context);
+                          }
+                        },
+                        _isLoading,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 40),
+              ],
+            ),
           ),
         ),
       ),
@@ -262,6 +222,7 @@ class _LoginScreenState extends State<LoginScreen>
   }
 }
 
+// Keep the EmailLoginScreen class unchanged
 class EmailLoginScreen extends StatefulWidget {
   const EmailLoginScreen({Key? key}) : super(key: key);
 
@@ -306,7 +267,7 @@ class _EmailLoginScreenState extends State<EmailLoginScreen> {
     return ClipRRect(
       borderRadius: BorderRadius.circular(28),
       child: BackdropFilter(
-        filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
         child: TextField(
           controller: controller,
           obscureText: obscureText,
@@ -419,7 +380,7 @@ class _EmailLoginScreenState extends State<EmailLoginScreen> {
           extendBodyBehindAppBar: true,
           backgroundColor: Colors.transparent,
           resizeToAvoidBottomInset: true,
-          body: GradientBackground(
+          body: SizedBox.expand(
             child: SafeArea(
               child: Padding(
                 padding: const EdgeInsets.all(20.0),

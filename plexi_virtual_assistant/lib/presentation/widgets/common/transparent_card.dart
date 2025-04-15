@@ -30,8 +30,8 @@ class TransparentCard extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(borderRadius),
-        splashColor: Colors.white.withAlpha(77),
-        highlightColor: Colors.white.withAlpha(77),
+        splashColor: Colors.white.withAlpha(10),
+        highlightColor: Colors.white.withAlpha(10),
         child: Container(
           width: width,
           height: height,
@@ -39,7 +39,7 @@ class TransparentCard extends StatelessWidget {
               margin ?? const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
           padding: padding ?? const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.white.withAlpha(77),
+            color: Colors.white.withAlpha(20),
             // border: Border.all(color: const Color.fromARGB(255, 38, 38, 38)),
             borderRadius: BorderRadius.circular(borderRadius),
           ),

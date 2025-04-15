@@ -409,6 +409,17 @@ class _CalorieTargetPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Calculate macronutrients in grams
+    final double proteinGrams = dailyTarget != null
+        ? (dailyTarget! * 0.25) / 4
+        : 0; // 25% of calories, 4 calories per gram
+    final double carbsGrams = dailyTarget != null
+        ? (dailyTarget! * 0.50) / 4
+        : 0; // 50% of calories, 4 calories per gram
+    final double fatGrams = dailyTarget != null
+        ? (dailyTarget! * 0.25) / 9
+        : 0; // 25% of calories, 9 calories per gram
+
     return BlocConsumer<PreferencesBloc, PreferencesState>(
       listener: (context, state) {
         if (state is PreferencesError) {
@@ -429,7 +440,7 @@ class _CalorieTargetPage extends StatelessWidget {
                     Text(
                       'Here\'s your daily nutritional goal',
                       style:
-                          Theme.of(context).textTheme.headlineSmall?.copyWith(
+                          Theme.of(context).textTheme.headlineMedium?.copyWith(
                                 color: Colors.white,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -437,7 +448,7 @@ class _CalorieTargetPage extends StatelessWidget {
                     ),
                     const SizedBox(height: 16),
                     const Text(
-                      'This can help us calculate your optimal daily calorie needs based on your metrics.',
+                      "Based on your profile here's what I recommend:",
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         color: Colors.white70,
@@ -457,7 +468,7 @@ class _CalorieTargetPage extends StatelessWidget {
                             strokeWidth: 12,
                             backgroundColor: Colors.white.withAlpha(77),
                             valueColor: const AlwaysStoppedAnimation<Color>(
-                                Colors.orange),
+                                Colors.green),
                           ),
                         ),
                         Column(
@@ -482,14 +493,25 @@ class _CalorieTargetPage extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 32),
-                    // Example macronutrient breakdown
+                    // Example macronutrient breakdown with emoticons
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
                         _buildMacronutrientCircle(
-                            'Protein', '25%', Colors.orange),
-                        _buildMacronutrientCircle('Carbs', '50%', Colors.blue),
-                        _buildMacronutrientCircle('Fat', '25%', Colors.purple),
+                            'Protein',
+                            '🥩',
+                            proteinGrams.round().toString() + 'g',
+                            Colors.red.withAlpha(150)),
+                        _buildMacronutrientCircle(
+                            'Carbs',
+                            '🍞',
+                            carbsGrams.round().toString() + 'g',
+                            Colors.amber.withAlpha(150)),
+                        _buildMacronutrientCircle(
+                            'Fat',
+                            '🥑',
+                            fatGrams.round().toString() + 'g',
+                            Colors.green.withAlpha(150)),
                       ],
                     ),
                     const SizedBox(height: 32),
@@ -566,23 +588,21 @@ class _CalorieTargetPage extends StatelessWidget {
   }
 
   Widget _buildMacronutrientCircle(
-      String label, String percentage, Color color) {
+      String label, String emoji, String grams, Color color) {
     return Column(
       children: [
         Container(
-          width: 60,
-          height: 60,
+          width: 80,
+          height: 80,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: color,
           ),
           child: Center(
             child: Text(
-              percentage,
+              emoji,
               style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
+                fontSize: 32,
               ),
             ),
           ),
@@ -592,6 +612,14 @@ class _CalorieTargetPage extends StatelessWidget {
           label,
           style: const TextStyle(
             color: Colors.white,
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        Text(
+          grams,
+          style: const TextStyle(
+            color: Colors.white70,
             fontSize: 14,
           ),
         ),

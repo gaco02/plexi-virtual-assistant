@@ -23,7 +23,8 @@ import 'blocs/budget/budget_event.dart';
 import 'blocs/transaction/transaction_event.dart';
 import 'blocs/calorie/calorie_event.dart';
 import 'presentation/screens/home/home_screen.dart';
-import 'presentation/screens/home/login_screen.dart';
+import 'presentation/screens/loging/login_screen.dart';
+import 'presentation/screens/loging/welcome_screen.dart';
 import 'presentation/screens/home/onboarding_screen.dart';
 import 'data/cache/cache_manager.dart';
 
@@ -223,7 +224,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
             body: Center(child: CircularProgressIndicator()),
           );
         }
-        return LoginScreen();
+        // Show the welcome screen instead of directly showing login screen
+        return const WelcomeScreen();
       },
     );
   }
