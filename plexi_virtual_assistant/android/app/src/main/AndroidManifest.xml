@@ -1,6 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application
-        android:label="plexi_virtual_assistant"
+        android:label="Plexi"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

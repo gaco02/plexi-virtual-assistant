@@ -58,7 +58,7 @@ class _ChatScreenState extends State<ChatScreen> {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             content: Text(state.error!),
-                            backgroundColor: Colors.red.shade700,
+                            backgroundColor: Color(0xFFE75A42),
                             duration: const Duration(seconds: 5),
                             action: SnackBarAction(
                               label: 'Dismiss',

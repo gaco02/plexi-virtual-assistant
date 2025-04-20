@@ -235,8 +235,8 @@ class ChatMessageBubble extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         // Feel free to change this color to match your "windsurf" theme
-        color: Colors.grey.shade900,
-        borderRadius: BorderRadius.circular(10),
+        color: const Color(0xFFffe8d5),
+        borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -263,7 +263,7 @@ class ChatMessageBubble extends StatelessWidget {
                         : 'Nutrition information:',
             style: const TextStyle(
               fontWeight: FontWeight.bold,
-              color: Colors.white,
+              color: const Color(0xFF440d06),
               fontSize: 16,
             ),
           ),
@@ -275,7 +275,7 @@ class ChatMessageBubble extends StatelessWidget {
                 isLoggingAction
                     ? '● Calories: $totalCalories'
                     : '● Total: $totalCalories calories',
-                style: const TextStyle(color: Colors.white),
+                style: const TextStyle(color: Color(0xFF440d06)),
               ),
             ],
           ),
@@ -285,7 +285,7 @@ class ChatMessageBubble extends StatelessWidget {
                 Text(
                   '● Carbs: ${calorieInfo['total_carbs']}g '
                   '(${_calculatePercentage(calorieInfo['total_carbs'] * 4, totalCalories)}%)',
-                  style: const TextStyle(color: Colors.white),
+                  style: const TextStyle(color: Color(0xFF440d06)),
                 ),
               ],
             ),
@@ -295,7 +295,9 @@ class ChatMessageBubble extends StatelessWidget {
                 Text(
                   '● Protein: ${calorieInfo['total_protein']}g '
                   '(${_calculatePercentage(calorieInfo['total_protein'] * 4, totalCalories)}%)',
-                  style: const TextStyle(color: Colors.white),
+                  style: const TextStyle(
+                    color: Color(0xFF440d06),
+                  ),
                 ),
               ],
             ),
@@ -305,7 +307,9 @@ class ChatMessageBubble extends StatelessWidget {
                 Text(
                   '● Fat: ${calorieInfo['total_fat']}g '
                   '(${_calculatePercentage(calorieInfo['total_fat'] * 9, totalCalories)}%)',
-                  style: const TextStyle(color: Colors.white),
+                  style: const TextStyle(
+                    color: Color(0xFF440d06),
+                  ),
                 ),
               ],
             ),
@@ -322,7 +326,7 @@ class ChatMessageBubble extends StatelessWidget {
                   'Food breakdown:',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                    color: Color(0xFF440d06),
                     fontSize: 16,
                   ),
                 ),
@@ -628,8 +632,8 @@ class ChatMessageBubble extends StatelessWidget {
       margin: const EdgeInsets.only(top: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.grey.shade900,
-        borderRadius: BorderRadius.circular(10),
+        color: const Color(0xFFffe8d5),
+        borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -642,7 +646,7 @@ class ChatMessageBubble extends StatelessWidget {
                     : 'Expense Summary',
             style: const TextStyle(
               fontWeight: FontWeight.bold,
-              color: Colors.white,
+              color: Color(0xFF440d06),
               fontSize: 16,
             ),
           ),
@@ -653,7 +657,7 @@ class ChatMessageBubble extends StatelessWidget {
             Text(
               '● Total spent $timePeriod: \$${total.toStringAsFixed(2)}',
               style: const TextStyle(
-                color: Colors.white,
+                color: Color(0xFF440d06),
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -666,7 +670,7 @@ class ChatMessageBubble extends StatelessWidget {
               child: Text(
                 '● Added: \$${addedAmount?.toStringAsFixed(2) ?? "?"} for ${expenseDescription ?? _formatCategory(category ?? "other")}',
                 style: const TextStyle(
-                  color: Colors.white,
+                  color: Color(0xFF440d06),
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -676,7 +680,7 @@ class ChatMessageBubble extends StatelessWidget {
           if (isLoggingAction)
             Text(
               '● Total spent today: \$${total.toStringAsFixed(2)}',
-              style: const TextStyle(color: Colors.white),
+              style: const TextStyle(color: Color(0xFF440d06)),
             ),
 
           // Show category breakdown for both queries and logging actions if multiple categories
@@ -689,7 +693,7 @@ class ChatMessageBubble extends StatelessWidget {
                   'Category breakdown:',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                    color: Color(0xFF440d06),
                     fontSize: 16,
                   ),
                 ),
@@ -704,7 +708,7 @@ class ChatMessageBubble extends StatelessWidget {
                     padding: const EdgeInsets.only(top: 4),
                     child: Text(
                       '● ${_formatCategory(cat)}: \$${amount.toStringAsFixed(2)}',
-                      style: const TextStyle(color: Colors.white),
+                      style: const TextStyle(color: Color(0xFF440d06)),
                     ),
                   );
                 }),
@@ -847,13 +851,13 @@ class ChatMessageBubble extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: Colors.blue.shade800,
+            color: const Color(0xFFFB5814),
             borderRadius: BorderRadius.circular(16),
           ),
           child: SelectableText(
             formattedText,
             style: const TextStyle(
-              color: Colors.white,
+              color: Color(0xFF440d06),
               fontSize: 16,
               height: 1.4,
               fontFamily: 'Roboto',
@@ -869,7 +873,7 @@ class ChatMessageBubble extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: Colors.grey.shade800,
+            color: const Color(0xFFffe8d5),
             borderRadius: BorderRadius.circular(16),
           ),
           child: Column(
@@ -881,7 +885,8 @@ class ChatMessageBubble extends StatelessWidget {
                 SelectableText(
                   formattedText,
                   style: const TextStyle(
-                    color: Colors.white,
+                    color: const Color(0xFF440d06),
+                    fontFamily: 'Roboto',
                     fontSize: 16,
                     height: 1.4,
                   ),
