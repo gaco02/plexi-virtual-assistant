@@ -15,7 +15,6 @@ import '../chat_screen.dart';
 import '../loging/login_screen.dart';
 import '../../widgets/common/app_background.dart';
 import '../../../data/models/user_preferences.dart';
-import '../loging/login_screen.dart';
 
 // Create a route observer to detect when we return to this screen
 final RouteObserver<PageRoute> routeObserver = RouteObserver<PageRoute>();
@@ -201,10 +200,10 @@ class _HomeScreenState extends State<HomeScreen>
                           ),
                         );
                       },
-                      backgroundColor: Colors.black.withAlpha(77),
+                      backgroundColor: Color(0xFFFD7835),
                       child: const Icon(
                         Icons.chat_bubble_outline,
-                        color: Colors.white,
+                        color: Color(0xFF440d06),
                         size: 30,
                       ),
                     ),

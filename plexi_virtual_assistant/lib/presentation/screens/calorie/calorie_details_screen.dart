@@ -410,7 +410,7 @@ class _CalorieDetailsScreenState extends State<CalorieDetailsScreen>
                     entries: allEntries,
                     targetCalories: dailyCalorieTarget,
                     showTarget: dailyCalorieTarget > 0,
-                    barColor: const Color(0xFF4CAF50),
+                    barColor: const Color(0xFFfd7835),
                   ),
                 ),
 

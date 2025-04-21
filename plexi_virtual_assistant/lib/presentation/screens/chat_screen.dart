@@ -3,7 +3,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../blocs/chat/chat_bloc.dart';
 import '../../blocs/chat/chat_event.dart';
 import '../../blocs/chat/chat_state.dart';
-import '../../data/models/chat_message.dart';
 import '../widgets/chat/chat_input.dart';
 import '../widgets/common/app_background.dart';
 import '../widgets/chat/chat_message_list.dart';
@@ -58,7 +57,7 @@ class _ChatScreenState extends State<ChatScreen> {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             content: Text(state.error!),
-                            backgroundColor: Color(0xFFE75A42),
+                            backgroundColor: Color(0xFFFD7835),
                             duration: const Duration(seconds: 5),
                             action: SnackBarAction(
                               label: 'Dismiss',

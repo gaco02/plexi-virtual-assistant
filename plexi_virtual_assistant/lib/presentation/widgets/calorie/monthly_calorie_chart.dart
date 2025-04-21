@@ -22,7 +22,7 @@ class WeeklyCalorieChart extends StatefulWidget {
     this.entries,
     this.targetCalories = 0,
     this.showTarget = true,
-    this.barColor = const Color(0xFF4CAF50),
+    this.barColor = const Color(0xFFfd7835),
     this.targetLineColor = Colors.redAccent,
     this.backgroundColor = const Color(0x33FFFFFF),
     this.cornerRadius = 8.0,
@@ -416,9 +416,9 @@ class _WeeklyCalorieChartState extends State<WeeklyCalorieChart> {
     );
 
     // Define colors for different states
-    final Color normalColor = widget.barColor.withAlpha(77);
+    final Color normalColor = widget.barColor;
     final Color todayColor = Colors.greenAccent;
-    final Color excessColor = Colors.redAccent.withAlpha(77);
+    final Color excessColor = Colors.redAccent;
     final Color todayExcessColor = Colors.redAccent;
 
     return _visibleDays.asMap().entries.map((entry) {

@@ -219,7 +219,7 @@ class _SpendingByCategoryState extends State<SpendingByCategory> {
               Padding(
                 padding: const EdgeInsets.only(top: 16),
                 child: Text(
-                  'Monthly Budget: \$${widget.monthlyBudget!.toStringAsFixed(2)}',
+                  'Monthly Budget: ${FormattingUtils.formatCurrency(widget.monthlyBudget!)}',
                   style: const TextStyle(
                     color: Colors.white70,
                     fontStyle: FontStyle.italic,

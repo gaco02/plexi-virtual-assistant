@@ -186,7 +186,12 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           title: 'Plexi Chat',
           debugShowCheckedModeBanner: false,
           theme: ThemeData(
-            primarySwatch: Colors.blue,
+            // Use primaryColor and a light ColorScheme to accept plain Color values
+            primaryColor: Colors.orange,
+            colorScheme: ColorScheme.light(
+              primary: Colors.orange,
+              secondary: Colors.deepOrangeAccent,
+            ),
             visualDensity: VisualDensity.adaptivePlatformDensity,
           ),
           // Use home instead of routes and initialRoute

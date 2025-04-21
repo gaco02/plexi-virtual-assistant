@@ -49,7 +49,7 @@ class NutritionGoalCard extends StatelessWidget {
         statusColor = Colors.green;
         break;
       case NutritionStatus.warning:
-        statusColor = Colors.yellow;
+        statusColor = Color(0xFFfd7835);
         break;
       case NutritionStatus.bad:
         statusColor = Colors.red;
@@ -62,7 +62,7 @@ class NutritionGoalCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withAlpha(77),
+        color: Color(0xFF18181B),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: statusColor.withAlpha(77)),
       ),

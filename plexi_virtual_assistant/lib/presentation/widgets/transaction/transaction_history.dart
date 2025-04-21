@@ -704,7 +704,7 @@ class TransactionCategorySelector extends StatelessWidget {
               label: Text(
                 displayName,
                 style: TextStyle(
-                  color: isSelected ? Colors.white : Colors.white70,
+                  color: isSelected ? const Color(0xFFfd7835) : Colors.black,
                 ),
               ),
               selected: isSelected,
@@ -712,7 +712,7 @@ class TransactionCategorySelector extends StatelessWidget {
                 onCategorySelected(category);
               },
               selectedColor: Theme.of(context).colorScheme.primary,
-              backgroundColor: Colors.blue.withAlpha(77),
+              backgroundColor: const Color(0xFFfd7835).withAlpha(77),
             ),
           );
         }).toList(),
@@ -797,13 +797,6 @@ class _DateSelectorState extends State<DateSelector> {
         if (widget.showMonth)
           Padding(
             padding: const EdgeInsets.only(left: 8.0, bottom: 8.0),
-            child: Text(
-              DateFormat('MMMM yyyy').format(widget.selectedDate),
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
-            ),
           ),
         SizedBox(
           height: 60,
@@ -833,7 +826,7 @@ class _DateSelectorState extends State<DateSelector> {
                   decoration: BoxDecoration(
                     color: isSelected
                         ? Theme.of(context).colorScheme.primary
-                        : (isToday ? Colors.blue : Colors.blue.withAlpha(77)),
+                        : (isToday ? Color(0xFFfd7835) : Color(0xFFfd7835)),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Column(
