@@ -23,7 +23,8 @@ class TransactionDetailsCache {
   static Map<TransactionCategory, double> categoryTotals = {};
   static double monthlyTotal = 0.0;
   static TransactionAnalysis? analysis;
-  static bool isInitialized = false;
+  static bool transactionsInitialized = false;
+  static bool analysisInitialized = false;
 }
 
 class TransactionDetailsScreen extends StatefulWidget {
@@ -89,7 +90,9 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen>
 
     // Only force a refresh if this is the first time loading the screen
     // or if the cache is not initialized
-    if (_isFirstLoad || !TransactionDetailsCache.isInitialized) {
+    if (_isFirstLoad ||
+        !TransactionDetailsCache.transactionsInitialized ||
+        !TransactionDetailsCache.analysisInitialized) {
       _loadDataForCurrentTab(forceRefresh: false);
       _isFirstLoad = false;
     }
@@ -102,10 +105,30 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen>
     super.dispose();
   }
 
+  /// Optimistically update cache and UI when a transaction is added
+  void _optimisticAddTransaction(Transaction transaction) {
+    setState(() {
+      TransactionDetailsCache.transactions.add(transaction);
+      TransactionDetailsCache.categoryTotals[transaction.category] =
+          (TransactionDetailsCache.categoryTotals[transaction.category] ?? 0) +
+              transaction.amount;
+      TransactionDetailsCache.monthlyTotal += transaction.amount;
+      TransactionDetailsCache.transactionsInitialized = true;
+    });
+  }
+
+  /// Debounce helper for expensive loads
+  void _debounceLoad(Function loadFn,
+      {Duration duration = const Duration(milliseconds: 400)}) {
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(duration, () => loadFn());
+  }
+
   /// Load initial data, using cache when available
   void _loadInitialData() {
     // If cache is already initialized, use it
-    if (TransactionDetailsCache.isInitialized) {
+    if (TransactionDetailsCache.transactionsInitialized &&
+        TransactionDetailsCache.analysisInitialized) {
       // Update the UI with cached data
       if (_tabController.index == 0) {
         // Analysis tab - use cached analysis data
@@ -133,9 +156,6 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen>
     if (_tabController.index == 1) {
       _loadHistoryData(useCache: false);
     }
-
-    // Mark cache as initialized
-    TransactionDetailsCache.isInitialized = true;
   }
 
   /// Convert the selected time frame to an analysis period
@@ -154,17 +174,20 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen>
 
   /// Load transaction history data
   void _loadHistoryData({bool useCache = false}) {
-    if (useCache && TransactionDetailsCache.transactions.isNotEmpty) {
+    if (useCache &&
+        TransactionDetailsCache.transactionsInitialized &&
+        TransactionDetailsCache.transactions.isNotEmpty) {
       setState(() => _isLoading = false);
       return;
     }
-
-    context.read<TransactionAnalysisBloc>().add(
-          LoadTransactionHistory(
-            period: analysisPeriod,
-            date: todayStr, // Pass today's date
-          ),
-        );
+    _debounceLoad(() {
+      context.read<TransactionAnalysisBloc>().add(
+            LoadTransactionHistory(
+              period: analysisPeriod,
+              date: todayStr, // Pass today's date
+            ),
+          );
+    });
   }
 
   void _loadAnalysisData({bool useCache = false}) {
@@ -173,7 +196,7 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen>
     // Use cached analysis data if available and requested
     if (useCache &&
         (analysisBloc.cachedAnalysis != null ||
-            TransactionDetailsCache.analysis != null)) {
+            TransactionDetailsCache.analysisInitialized)) {
       // If we have cached analysis in the bloc, use it
       if (analysisBloc.cachedAnalysis != null) {
         TransactionDetailsCache.analysis = analysisBloc.cachedAnalysis;
@@ -184,8 +207,9 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen>
     }
 
     // Otherwise, load fresh data
-
-    analysisBloc.add(const LoadTransactionAnalysis());
+    _debounceLoad(() {
+      analysisBloc.add(const LoadTransactionAnalysis());
+    });
   }
 
   /// Load data based on the current tab
@@ -201,7 +225,9 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen>
     final analysisBloc = context.read<TransactionAnalysisBloc>();
 
     // Use cached data if available and requested
-    if (useCache && TransactionDetailsCache.isInitialized) {
+    if (useCache &&
+        TransactionDetailsCache.transactionsInitialized &&
+        TransactionDetailsCache.analysisInitialized) {
       setState(() => _isLoading = false);
       return;
     }
@@ -320,16 +346,20 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen>
           TransactionDetailsCache.monthlyTotal = state.monthlyAmount;
           TransactionDetailsCache.categoryTotals =
               _calculateCategoryTotals(state.transactions);
-          TransactionDetailsCache.isInitialized = true;
+          TransactionDetailsCache.transactionsInitialized = true;
           setState(() => _isLoading = false);
         }
+        // Optimistic update example: if you have an AddTransactionSuccess state, call _optimisticAddTransaction
+        // if (state is AddTransactionSuccess) {
+        //   _optimisticAddTransaction(state.transaction);
+        // }
       },
       child: BlocListener<TransactionAnalysisBloc, TransactionAnalysisState>(
         listener: (context, state) {
           // Update cache when new analysis data is loaded
           if (state is TransactionAnalysisLoaded) {
             TransactionDetailsCache.analysis = state.analysis;
-            TransactionDetailsCache.isInitialized = true;
+            TransactionDetailsCache.analysisInitialized = true;
             setState(() => _isLoading = false);
           }
         },
@@ -346,7 +376,7 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen>
           builder: (context, state) {
             // Show loading indicator if we're still loading and have no cached data
             if ((state is TransactionLoading || state is TransactionInitial) &&
-                !TransactionDetailsCache.isInitialized) {
+                !TransactionDetailsCache.transactionsInitialized) {
               return const Center(child: CircularProgressIndicator());
             }
 
@@ -392,7 +422,8 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen>
                             },
                             builder: (context, state) {
                               // If we have cached data, use it
-                              if (TransactionDetailsCache.isInitialized &&
+                              if (TransactionDetailsCache
+                                      .transactionsInitialized &&
                                   TransactionDetailsCache
                                       .categoryTotals.isNotEmpty) {
                                 return SpendingByCategory(
