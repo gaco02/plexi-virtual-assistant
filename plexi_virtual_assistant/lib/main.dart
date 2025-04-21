@@ -194,8 +194,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
             ),
             visualDensity: VisualDensity.adaptivePlatformDensity,
           ),
-          // Use home instead of routes and initialRoute
-          home: const WelcomeScreen(),
+          // Use _buildInitialScreen to determine the home screen based on auth state
+          home: _buildInitialScreen(context),
           navigatorKey: widget.navigatorKey,
           navigatorObservers: [routeObserver],
         ),

@@ -27,6 +27,7 @@ class _CalorieDetailsScreenState extends State<CalorieDetailsScreen>
   List<CalorieEntry> _entries = [];
   bool _isLoading = true;
   bool _hasLoadedInitialData = false;
+  bool _justCompletedOnboarding = true; // Add this flag
   String _selectedTimeFrame = 'Today';
   final List<String> _timeFrames = ['Today', 'Week', 'Month'];
 
@@ -366,8 +367,22 @@ class _CalorieDetailsScreenState extends State<CalorieDetailsScreen>
       },
       builder: (context, state) {
         // If we don't have entries in the state, trigger monthly data load
-        if (state.entries.isEmpty && state.status != CalorieStatus.loading) {
+        // But only if we're not just coming from onboarding
+        if (state.entries.isEmpty && 
+            state.status != CalorieStatus.loading && 
+            !_justCompletedOnboarding) {
           context.read<CalorieBloc>().add(const LoadMonthlyCalories());
+        }
+        
+        // If this is the first time we're building after onboarding, set the flag to false
+        // so that future refreshes will work normally
+        if (_justCompletedOnboarding) {
+          // Use Future.microtask to avoid setState during build
+          Future.microtask(() {
+            setState(() {
+              _justCompletedOnboarding = false;
+            });
+          });
         }
 
         // Use either the entries from the state or the passed entries parameter

@@ -167,18 +167,7 @@ class _WeeklyCalorieChartState extends State<WeeklyCalorieChart> {
     // Only update state if the data has actually changed
     final dataChanged = !mapEquals(_dailyCalories, newDailyCalories) ||
         _todayIndex != newTodayIndex;
-    // --- DEBUG LOGGING START ---
-    if (kDebugMode) {
-      print('[MonthlyCalorieChart] _processEntries:');
-      print('  - Incoming entries count: ${entries.length}');
-      print('  - Calculated daily calories: $newDailyCalories');
-      print('  - Existing daily calories: $_dailyCalories');
-      print(
-          '  - mapEquals result: ${mapEquals(_dailyCalories, newDailyCalories)}');
-      print('  - Today index changed: ${_todayIndex != newTodayIndex}');
-      print('  - Data changed flag: $dataChanged');
-    }
-    // --- DEBUG LOGGING END ---
+
     if (dataChanged) {
       setState(() {
         _dailyCalories = newDailyCalories;
@@ -205,7 +194,6 @@ class _WeeklyCalorieChartState extends State<WeeklyCalorieChart> {
         final shouldRebuild = previous.entries != current.entries ||
             (previous.status == CalorieStatus.loading &&
                 current.status == CalorieStatus.loaded);
-        if (shouldRebuild) {}
         return shouldRebuild;
       },
       builder: (context, state) {
@@ -237,9 +225,9 @@ class _WeeklyCalorieChartState extends State<WeeklyCalorieChart> {
                 ),
                 SizedBox(height: 16),
                 TextButton(
-                  onPressed: () => context
-                      .read<CalorieBloc>()
-                      .add(const LoadMonthlyCalories()),
+                  // Remove the automatic trigger of LoadMonthlyCalories here
+                  // and only load data when explicitly requested by the user
+                  onPressed: () {},
                   child: Text('Retry', style: TextStyle(color: Colors.white)),
                 ),
               ],

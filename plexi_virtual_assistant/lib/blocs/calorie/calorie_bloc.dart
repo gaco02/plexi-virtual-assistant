@@ -14,6 +14,7 @@ class CalorieBloc extends Bloc<CalorieEvent, CalorieState>
   final CalorieRepository _repository;
   final PreferencesRepository _userPreferencesRepository;
   Timer? _refreshTimer;
+  DateTime? _lastMonthlyDataFetch;
 
   CalorieBloc({
     required CalorieRepository repository,
@@ -590,6 +591,18 @@ class CalorieBloc extends Bloc<CalorieEvent, CalorieState>
     Emitter<CalorieState> emit,
   ) async {
     try {
+      // Debounce monthly data requests - only fetch if 
+      // it's been at least 10 seconds since last request
+      final now = DateTime.now();
+      if (_lastMonthlyDataFetch != null && 
+          now.difference(_lastMonthlyDataFetch!).inSeconds < 10) {
+        // Skip this request as it's too soon after the previous one
+        return;
+      }
+      
+      // Update the last fetch timestamp
+      _lastMonthlyDataFetch = now;
+      
       emit(state.copyWith(status: CalorieStatus.loading));
 
       final monthlyData =

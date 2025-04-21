@@ -514,28 +514,14 @@ class _CalorieTargetPage extends StatelessWidget {
                             Colors.green.withAlpha(150)),
                       ],
                     ),
-                    const SizedBox(height: 32),
-                    Container(
-                      width: 80,
-                      height: 80,
-                      decoration: BoxDecoration(
-                        color: Colors.yellow.withAlpha(77),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(
-                        Icons.restaurant,
-                        color: Colors.yellow,
-                        size: 40,
-                      ),
-                    ),
-                    const SizedBox(height: 80), // Space for FAB
+                    const SizedBox(height: 80),
                   ],
                 ),
               ),
             ),
             Positioned(
-              bottom: 24,
-              right: 24,
+              bottom: 1,
+              right: 16,
               child: FloatingActionButton.extended(
                 onPressed: () {
                   if (weight != null &&
@@ -577,8 +563,7 @@ class _CalorieTargetPage extends StatelessWidget {
                   }
                 },
                 label: const Text('Start'),
-                icon: const Icon(Icons.arrow_forward),
-                backgroundColor: Colors.blue,
+                backgroundColor: Color(0xFFfd7835),
               ),
             ),
           ],
