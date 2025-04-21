@@ -109,7 +109,7 @@ class _LoginScreenState extends State<LoginScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: Color(0xFFfd7835),
       // Listen for AuthBloc events
       body: BlocListener<AuthBloc, AuthState>(
         listener: (context, state) {
@@ -161,9 +161,9 @@ class _LoginScreenState extends State<LoginScreen>
                           FadeTransition(
                             opacity: _fadeAnimation,
                             child: Image.asset(
-                              'assets/images/common/plexi_maskot1.png',
-                              width: 60,
-                              height: 60,
+                              'assets/images/onboarding/plexi_white_maskot.png',
+                              width: 90,
+                              height: 90,
                             ),
                           ),
                       ],

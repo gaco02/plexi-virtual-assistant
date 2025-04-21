@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
-import 'login_screen.dart';
+import 'insights_screen.dart';
 import 'package:vibration/vibration.dart';
 
 class ChatWelcomeScreen extends StatefulWidget {
@@ -25,6 +25,7 @@ class _ChatWelcomeScreenState extends State<ChatWelcomeScreen> {
   bool _showPlexiBubble1 = false;
   bool _showUserBubble2 = false;
   bool _showPlexiBubble2 = false;
+  bool _showNextButton = false;
 
   @override
   void initState() {
@@ -94,15 +95,7 @@ class _ChatWelcomeScreenState extends State<ChatWelcomeScreen> {
           Timer(const Duration(milliseconds: 1000), () {
             setState(() {
               _showPlexiBubble2 = true;
-            });
-
-            // Navigate to login screen after showing all bubbles
-            Timer(const Duration(milliseconds: 2000), () {
-              if (mounted) {
-                Navigator.of(context).pushReplacement(
-                  MaterialPageRoute(builder: (context) => LoginScreen()),
-                );
-              }
+              _showNextButton = true; // Show Next button after all bubbles
             });
           });
         });
@@ -113,72 +106,93 @@ class _ChatWelcomeScreenState extends State<ChatWelcomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: Color(0xFFfd7835),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 40.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header text that animates character by character
-              Text(
-                _visibleHeader,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  height: 1.3,
-                ),
+        child: Stack(
+          children: [
+            Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 24.0, vertical: 40.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Header text that animates character by character
+                  Text(
+                    _visibleHeader,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      height: 1.3,
+                    ),
+                  ),
+                  const SizedBox(height: 80),
+                  // Chat bubbles appearing one after another
+                  Expanded(
+                    child: SingleChildScrollView(
+                      child: Column(
+                        children: [
+                          if (_showUserBubble1)
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: _buildUserBubble(
+                                  "I spent \$100 on new shoes"),
+                            ),
+                          const SizedBox(height: 16),
+                          if (_showPlexiBubble1)
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: _buildPlexiBubble(
+                                  "Noted 🛍️ — total shopping is now \$300."),
+                            ),
+                          const SizedBox(height: 16),
+                          if (_showUserBubble2)
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: _buildUserBubble(
+                                  "I just ate a tuna sandwich"),
+                            ),
+                          const SizedBox(height: 16),
+                          if (_showPlexiBubble2)
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: _buildPlexiBubble(
+                                  "Oh! you just ate 450 calories🥪"),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
-
-              const SizedBox(height: 40),
-
-              // Chat bubbles appearing one after another
-              Expanded(
-                child: SingleChildScrollView(
-                  child: Column(
-                    children: [
-                      // First user message
-                      if (_showUserBubble1)
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: _buildUserBubble("I spent \$100 on new shoes"),
-                        ),
-
-                      const SizedBox(height: 16),
-
-                      // First Plexi response
-                      if (_showPlexiBubble1)
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: _buildPlexiBubble(
-                              "Noted 🛍️ — total shopping is now \$300."),
-                        ),
-
-                      const SizedBox(height: 16),
-
-                      // Second user message
-                      if (_showUserBubble2)
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: _buildUserBubble("I just ate a tuna sandwich"),
-                        ),
-
-                      const SizedBox(height: 16),
-
-                      // Second Plexi response
-                      if (_showPlexiBubble2)
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: _buildPlexiBubble(
-                              "Oh! you just ate 450 calories🥪"),
-                        ),
-                    ],
+            ),
+            if (_showNextButton)
+              Positioned(
+                bottom: 32,
+                right: 24,
+                child: TextButton(
+                  style: TextButton.styleFrom(
+                    backgroundColor: Colors.transparent,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8)),
+                  ),
+                  onPressed: () {
+                    Navigator.of(context).pushReplacement(
+                      MaterialPageRoute(builder: (context) => InsightsScreen()),
+                    );
+                  },
+                  child: const Text(
+                    'Next',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ),
-            ],
-          ),
+          ],
         ),
       ),
     );
@@ -189,7 +203,7 @@ class _ChatWelcomeScreenState extends State<ChatWelcomeScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFFE07A5F), // Coral color for user messages
+        color: const Color(0xFFA3333D), // Coral color for user messages
         borderRadius: BorderRadius.circular(20),
       ),
       constraints: BoxConstraints(

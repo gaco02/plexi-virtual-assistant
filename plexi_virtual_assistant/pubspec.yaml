@@ -81,6 +81,7 @@ flutter:
     - assets/images/transaction/
     - assets/images/calories/
     - assets/images/common/
+    - assets/images/onboarding/
 
 flutter_icons:
   android: true

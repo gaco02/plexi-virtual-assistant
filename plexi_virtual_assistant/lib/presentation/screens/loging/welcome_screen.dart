@@ -15,6 +15,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
     with SingleTickerProviderStateMixin {
   bool _showDots = true;
   bool _showMaskot = false;
+  bool _showNextButton = false;
   late Timer _timer;
   int _dotsCount = 0;
 
@@ -23,29 +24,22 @@ class _WelcomeScreenState extends State<WelcomeScreen>
   final String _subtitleText = "Your AI assistant";
   String _visibleGreeting = "";
   String _visibleSubtitle = "";
+  bool _hasVibrationSupport = false;
   int _greetingCharIndex = 0;
   int _subtitleCharIndex = 0;
-  bool _isGreetingComplete = false;
-  bool _isSubtitleComplete = false;
-  bool _hasVibrationSupport = false;
 
   @override
   void initState() {
     super.initState();
-
-    // Check if vibration is supported
     _checkVibrationSupport();
-
-    // Start the dots animation sequence
-    _timer = Timer.periodic(const Duration(milliseconds: 600), (timer) {
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       setState(() {
         if (_dotsCount < 3) {
           _dotsCount++;
         } else {
           _showDots = false;
           _timer.cancel();
-
-          // Start text animation after dots complete
+          // Start streaming text animation after dots
           _startTextAnimation();
         }
       });
@@ -69,41 +63,33 @@ class _WelcomeScreenState extends State<WelcomeScreen>
 
   void _startTextAnimation() {
     // Animate greeting text one character at a time
-    Timer.periodic(const Duration(milliseconds: 100), (timer) {
+    Timer.periodic(const Duration(milliseconds: 60), (timer) {
       if (_greetingCharIndex < _greetingText.length) {
         setState(() {
           _visibleGreeting = _greetingText.substring(0, _greetingCharIndex + 1);
           _greetingCharIndex++;
-          _vibrateIfSupported(); // Vibrate with each new letter
         });
       } else {
         timer.cancel();
-        _isGreetingComplete = true;
-
         // Start subtitle animation after greeting completes
-        Timer.periodic(const Duration(milliseconds: 100), (timer) {
+        Timer.periodic(const Duration(milliseconds: 60), (timer) {
           if (_subtitleCharIndex < _subtitleText.length) {
             setState(() {
-              _visibleSubtitle =
-                  _subtitleText.substring(0, _subtitleCharIndex + 1);
+              _visibleSubtitle = _subtitleText.substring(0, _subtitleCharIndex + 1);
               _subtitleCharIndex++;
-              _vibrateIfSupported(); // Vibrate with each new letter
             });
           } else {
             timer.cancel();
-            _isSubtitleComplete = true;
-
-            // Show maskot after text animation completes
+            // Show mascot after text animation completes
             setState(() {
               _showMaskot = true;
             });
-
-            // Navigate to LoginScreen after 2 seconds of showing the final state
-            Timer(const Duration(milliseconds: 2000), () {
+            // Show Next button after mascot appears
+            Future.delayed(const Duration(milliseconds: 800), () {
               if (mounted) {
-                Navigator.of(context).pushReplacement(
-                  MaterialPageRoute(builder: (context) => ChatWelcomeScreen()),
-                );
+                setState(() {
+                  _showNextButton = true;
+                });
               }
             });
           }
@@ -121,15 +107,82 @@ class _WelcomeScreenState extends State<WelcomeScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: const Color(0xFFfd7835),
       body: SafeArea(
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (_showDots) _buildDots() else _buildContent(),
-            ],
-          ),
+        child: Stack(
+          children: [
+            // Centered content (dots or greeting/subtitle/mascot)
+            Center(
+              child: _showDots
+                  ? _buildDots()
+                  : Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Text(
+                          _visibleGreeting,
+                          style: const TextStyle(
+                            color: Color(0xFF440d06),
+                            fontSize: 42,
+                            fontWeight: FontWeight.bold,
+                            fontFamily: 'Roboto',
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          _visibleSubtitle,
+                          style: const TextStyle(
+                            color: Color(0xFF440d06),
+                            fontSize: 24,
+                            fontWeight: FontWeight.w500,
+                            fontFamily: 'Roboto',
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 40),
+                        if (_showMaskot)
+                          AnimatedOpacity(
+                            opacity: 1.0,
+                            duration: const Duration(milliseconds: 1000),
+                            child: Image.asset(
+                              'assets/images/onboarding/plexi_white_maskot.png',
+                              width: 150,
+                              height: 150,
+                            ),
+                          ),
+                      ],
+                    ),
+            ),
+            // Bottom right Next button
+            if (_showNextButton)
+              Positioned(
+                bottom: 32,
+                right: 24,
+                child: TextButton(
+                  style: TextButton.styleFrom(
+                    backgroundColor: Colors.transparent,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8)),
+                  ),
+                  onPressed: () {
+                    Navigator.of(context).pushReplacement(
+                      MaterialPageRoute(
+                          builder: (context) => ChatWelcomeScreen()),
+                    );
+                  },
+                  child: const Text(
+                    'Next',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );
@@ -144,46 +197,11 @@ class _WelcomeScreenState extends State<WelcomeScreen>
     return Text(
       dots,
       style: const TextStyle(
-        color:
-            Color(0xFFFAA61A), // Orange color similar to the maskot chat bubble
+        color: Color.fromARGB(255, 252, 252,
+            252), // Orange color similar to the maskot chat bubble
         fontSize: 40,
         fontWeight: FontWeight.bold,
       ),
-    );
-  }
-
-  Widget _buildContent() {
-    return Column(
-      children: [
-        Text(
-          _visibleGreeting,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 32,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          _visibleSubtitle,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 24,
-            fontWeight: FontWeight.w400,
-          ),
-        ),
-        const SizedBox(height: 40),
-        if (_showMaskot)
-          AnimatedOpacity(
-            opacity: 1.0,
-            duration: const Duration(milliseconds: 800),
-            child: Image.asset(
-              'assets/images/common/plexi_maskot1.png',
-              width: 80,
-              height: 80,
-            ),
-          ),
-      ],
     );
   }
 }
