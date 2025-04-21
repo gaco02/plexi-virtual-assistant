@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../../blocs/auth/auth_bloc.dart';
 import 'login_screen.dart';
+import 'name_welcome_screen.dart';
 
 class InsightsScreen extends StatefulWidget {
   const InsightsScreen({Key? key}) : super(key: key);
@@ -110,9 +113,21 @@ class _InsightsScreenState extends State<InsightsScreen> {
                         borderRadius: BorderRadius.circular(8)),
                   ),
                   onPressed: () {
-                    Navigator.of(context).pushReplacement(
-                      MaterialPageRoute(builder: (context) => LoginScreen()),
-                    );
+                    if (mounted) {
+                      // Check auth state before navigating
+                      final authState = context.read<AuthBloc>().state;
+                      if (authState is AuthAuthenticated) {
+                        // If already authenticated, go to name welcome screen
+                        Navigator.of(context).pushReplacement(
+                          MaterialPageRoute(builder: (context) => const NameWelcomeScreen()),
+                        );
+                      } else {
+                        // If not authenticated, go to login screen
+                        Navigator.of(context).pushReplacement(
+                          MaterialPageRoute(builder: (context) => const LoginScreen()),
+                        );
+                      }
+                    }
                   },
                   child: const Text(
                     'Next',

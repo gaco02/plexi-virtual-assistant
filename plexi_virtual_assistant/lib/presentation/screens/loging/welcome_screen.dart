@@ -75,7 +75,8 @@ class _WelcomeScreenState extends State<WelcomeScreen>
         Timer.periodic(const Duration(milliseconds: 60), (timer) {
           if (_subtitleCharIndex < _subtitleText.length) {
             setState(() {
-              _visibleSubtitle = _subtitleText.substring(0, _subtitleCharIndex + 1);
+              _visibleSubtitle =
+                  _subtitleText.substring(0, _subtitleCharIndex + 1);
               _subtitleCharIndex++;
             });
           } else {

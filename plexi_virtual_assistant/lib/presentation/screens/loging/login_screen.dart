@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'dart:async';
 import '../../../blocs/auth/auth_bloc.dart';
 import '../home/home_screen.dart';
+import 'name_welcome_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({Key? key}) : super(key: key);
@@ -26,6 +27,7 @@ class _LoginScreenState extends State<LoginScreen>
   String _visibleText = '';
   int _charIndex = 0;
   bool _isTextComplete = false;
+  Timer? _textAnimationTimer;
 
   @override
   void initState() {
@@ -45,22 +47,30 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   void _startTextAnimation() {
-    Timer.periodic(const Duration(milliseconds: 50), (timer) {
+    _textAnimationTimer =
+        Timer.periodic(const Duration(milliseconds: 50), (timer) {
       if (_charIndex < _messageText.length) {
-        setState(() {
-          _visibleText = _messageText.substring(0, _charIndex + 1);
-          _charIndex++;
-        });
+        if (mounted) {
+          setState(() {
+            _visibleText = _messageText.substring(0, _charIndex + 1);
+            _charIndex++;
+          });
+        }
       } else {
         timer.cancel();
-        _isTextComplete = true;
-        _animationController.forward(); // fade in the buttons
+        if (mounted) {
+          setState(() {
+            _isTextComplete = true;
+          });
+          _animationController.forward(); // fade in the buttons
+        }
       }
     });
   }
 
   @override
   void dispose() {
+    _textAnimationTimer?.cancel();
     _animationController.dispose();
     super.dispose();
   }
@@ -113,25 +123,28 @@ class _LoginScreenState extends State<LoginScreen>
       // Listen for AuthBloc events
       body: BlocListener<AuthBloc, AuthState>(
         listener: (context, state) {
-          setState(() {
-            _isLoading = state is AuthLoading;
-          });
+          if (mounted) {
+            setState(() {
+              _isLoading = state is AuthLoading;
+            });
 
-          if (state is AuthError) {
-            ScaffoldMessenger.of(context).clearSnackBars();
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(state.message),
-                backgroundColor: Colors.red,
-              ),
-            );
-          }
+            if (state is AuthError) {
+              ScaffoldMessenger.of(context).clearSnackBars();
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(state.message),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            }
 
-          if (state is AuthAuthenticated) {
-            Navigator.of(context).pushAndRemoveUntil(
-              MaterialPageRoute(builder: (context) => const HomeScreen()),
-              (route) => false,
-            );
+            if (state is AuthAuthenticated) {
+              Navigator.of(context).pushAndRemoveUntil(
+                MaterialPageRoute(
+                    builder: (context) => const NameWelcomeScreen()),
+                (route) => false,
+              );
+            }
           }
         },
         child: SafeArea(
@@ -348,18 +361,20 @@ class _EmailLoginScreenState extends State<EmailLoginScreen> {
   Widget build(BuildContext context) {
     return BlocListener<AuthBloc, AuthState>(
       listener: (context, state) {
-        if (state is AuthLoading) {
-          setState(() => isProcessing = true);
-        } else {
-          setState(() => isProcessing = false);
-        }
-        if (state is AuthAuthenticated) {
-          Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(builder: (context) => const HomeScreen()),
-            (route) => false,
-          );
-        } else if (state is AuthError) {
-          _showErrorMessage(state.message);
+        if (mounted) {
+          if (state is AuthLoading) {
+            setState(() => isProcessing = true);
+          } else {
+            setState(() => isProcessing = false);
+          }
+          if (state is AuthAuthenticated) {
+            Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(builder: (context) => const HomeScreen()),
+              (route) => false,
+            );
+          } else if (state is AuthError) {
+            _showErrorMessage(state.message);
+          }
         }
       },
       child: ScaffoldMessenger(

@@ -1,6 +1,7 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:plexi_virtual_assistant/presentation/screens/loging/name_welcome_screen.dart';
 import 'services/api_service.dart';
 import 'data/repositories/chat_repository.dart';
 import 'data/repositories/restaurant_repository.dart';
@@ -25,7 +26,6 @@ import 'blocs/calorie/calorie_event.dart';
 import 'presentation/screens/home/home_screen.dart';
 import 'presentation/screens/loging/login_screen.dart';
 import 'presentation/screens/loging/welcome_screen.dart';
-import 'presentation/screens/home/onboarding_screen.dart';
 import 'data/cache/cache_manager.dart';
 
 void main() async {
@@ -44,7 +44,7 @@ void main() async {
   // Create a single instance of ApiService to be shared across repositories.
   final apiService = ApiService(
       // baseUrl: 'https://tiktok-analyzer-291212790768.us-west1.run.app');
-      baseUrl: 'http://192.168.1.213:8000');
+      baseUrl: 'http://192.168.1.180:8000');
 
   // Create CalorieRepository with ApiService
   final calorieRepository = CalorieRepository(apiService: apiService);
@@ -195,7 +195,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
             visualDensity: VisualDensity.adaptivePlatformDensity,
           ),
           // Use home instead of routes and initialRoute
-          home: _buildInitialScreen(context),
+          home: const WelcomeScreen(),
           navigatorKey: widget.navigatorKey,
           navigatorObservers: [routeObserver],
         ),
@@ -211,16 +211,17 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           return BlocBuilder<PreferencesBloc, PreferencesState>(
             builder: (context, prefsState) {
               if (prefsState is PreferencesLoaded) {
-                ;
+                if (prefsState.preferences.preferredName == null ||
+                    prefsState.preferences.preferredName!.isEmpty) {
+                  return const NameWelcomeScreen();
+                } else {
+                  return const HomeScreen();
+                }
               }
-
-              if (prefsState is! PreferencesLoaded ||
-                  prefsState.preferences.preferredName == null ||
-                  prefsState.preferences.preferredName!.isEmpty) {
-                return const OnboardingScreen();
-              }
-
-              return const HomeScreen();
+              // Show loading while preferences are loading
+              return const Scaffold(
+                body: Center(child: CircularProgressIndicator()),
+              );
             },
           );
         }
@@ -229,7 +230,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
             body: Center(child: CircularProgressIndicator()),
           );
         }
-        // Show the welcome screen instead of directly showing login screen
+        // Show the welcome screen for new users
         return const WelcomeScreen();
       },
     );
