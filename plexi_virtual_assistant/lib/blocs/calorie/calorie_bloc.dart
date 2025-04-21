@@ -646,6 +646,7 @@ class CalorieBloc extends Bloc<CalorieEvent, CalorieState>
           totalCarbs: _parseToDouble(monthlyData['total_carbs']),
           totalProtein: _parseToDouble(monthlyData['total_protein']),
           totalFat: _parseToDouble(monthlyData['total_fat']),
+          dailyTotals: dailyTotals,
         ));
       } else {
         emit(state.copyWith(

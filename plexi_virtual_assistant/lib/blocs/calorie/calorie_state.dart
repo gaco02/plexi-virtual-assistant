@@ -14,6 +14,7 @@ class CalorieState extends Equatable {
   final NutritionPlan? nutritionPlan;
   final String? errorMessage;
   final List<dynamic> entries;
+  final Map<DateTime, int>? dailyTotals;
 
   const CalorieState({
     this.status = CalorieStatus.initial,
@@ -26,6 +27,7 @@ class CalorieState extends Equatable {
     this.nutritionPlan,
     this.errorMessage,
     this.entries = const [],
+    this.dailyTotals,
   });
 
   @override
@@ -40,6 +42,7 @@ class CalorieState extends Equatable {
         nutritionPlan,
         errorMessage,
         entries,
+        dailyTotals,
       ];
 
   CalorieState copyWith({
@@ -53,6 +56,7 @@ class CalorieState extends Equatable {
     NutritionPlan? nutritionPlan,
     String? errorMessage,
     List<dynamic>? entries,
+    Map<DateTime, int>? dailyTotals,
   }) {
     return CalorieState(
       status: status ?? this.status,
@@ -65,6 +69,7 @@ class CalorieState extends Equatable {
       nutritionPlan: nutritionPlan ?? this.nutritionPlan,
       errorMessage: errorMessage ?? this.errorMessage,
       entries: entries ?? this.entries,
+      dailyTotals: dailyTotals ?? this.dailyTotals,
     );
   }
 }

@@ -167,6 +167,18 @@ class _WeeklyCalorieChartState extends State<WeeklyCalorieChart> {
     // Only update state if the data has actually changed
     final dataChanged = !mapEquals(_dailyCalories, newDailyCalories) ||
         _todayIndex != newTodayIndex;
+    // --- DEBUG LOGGING START ---
+    if (kDebugMode) {
+      print('[MonthlyCalorieChart] _processEntries:');
+      print('  - Incoming entries count: ${entries.length}');
+      print('  - Calculated daily calories: $newDailyCalories');
+      print('  - Existing daily calories: $_dailyCalories');
+      print(
+          '  - mapEquals result: ${mapEquals(_dailyCalories, newDailyCalories)}');
+      print('  - Today index changed: ${_todayIndex != newTodayIndex}');
+      print('  - Data changed flag: $dataChanged');
+    }
+    // --- DEBUG LOGGING END ---
     if (dataChanged) {
       setState(() {
         _dailyCalories = newDailyCalories;
@@ -237,6 +249,23 @@ class _WeeklyCalorieChartState extends State<WeeklyCalorieChart> {
 
         final List<CalorieEntry> typedEntries =
             List<CalorieEntry>.from(state.entries);
+        // Use dailyTotals cache if available
+        if (state.dailyTotals != null && state.dailyTotals!.isNotEmpty) {
+          // Set up visible days and daily calories from cache
+          final sortedDays = state.dailyTotals!.keys.toList()
+            ..sort((a, b) => a.compareTo(b));
+          _visibleDays = sortedDays;
+          _dailyCalories = Map.from(state.dailyTotals!);
+          // Find today's index
+          final today = DateTime.now();
+          _todayIndex = sortedDays.indexWhere((d) =>
+              d.year == today.year &&
+              d.month == today.month &&
+              d.day == today.day);
+        } else {
+          // Fallback: process entries as before
+          _processEntries(typedEntries);
+        }
         return _buildChartWithEntries(typedEntries);
       },
     );
