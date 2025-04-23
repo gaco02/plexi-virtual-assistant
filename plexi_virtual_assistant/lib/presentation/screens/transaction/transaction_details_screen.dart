@@ -349,10 +349,6 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen>
           TransactionDetailsCache.transactionsInitialized = true;
           setState(() => _isLoading = false);
         }
-        // Optimistic update example: if you have an AddTransactionSuccess state, call _optimisticAddTransaction
-        // if (state is AddTransactionSuccess) {
-        //   _optimisticAddTransaction(state.transaction);
-        // }
       },
       child: BlocListener<TransactionAnalysisBloc, TransactionAnalysisState>(
         listener: (context, state) {

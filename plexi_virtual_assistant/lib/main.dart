@@ -24,7 +24,7 @@ import 'blocs/budget/budget_event.dart';
 import 'blocs/transaction/transaction_event.dart';
 import 'blocs/calorie/calorie_event.dart';
 import 'presentation/screens/home/home_screen.dart';
-import 'presentation/screens/loging/login_screen.dart';
+
 import 'presentation/screens/loging/welcome_screen.dart';
 import 'data/cache/cache_manager.dart';
 
