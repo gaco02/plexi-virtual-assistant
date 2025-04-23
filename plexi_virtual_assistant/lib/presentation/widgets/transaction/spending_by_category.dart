@@ -56,15 +56,25 @@ class _SpendingByCategoryState extends State<SpendingByCategory> {
 
   // Refresh transaction data
   void _refreshData() {
-    // Request monthly transactions to ensure we have the latest data
-    context
-        .read<TransactionBloc>()
-        .add(const LoadMonthlyTransactions(forceRefresh: true));
+    print('SpendingByCategory: _refreshData called');
 
-    // Also refresh the transaction analysis
-    context
-        .read<TransactionAnalysisBloc>()
-        .add(const LoadTransactionAnalysis());
+    // Only refresh if we have no data
+    if (widget.categoryTotals.isEmpty || widget.totalAmount == 0) {
+      print(
+          'SpendingByCategory: Refreshing transaction data because data is empty');
+      // Request monthly transactions
+      context
+          .read<TransactionBloc>()
+          .add(const LoadMonthlyTransactions(forceRefresh: true));
+
+      // Also refresh the transaction analysis
+      context
+          .read<TransactionAnalysisBloc>()
+          .add(const LoadTransactionAnalysis());
+    } else {
+      print(
+          'SpendingByCategory: Not refreshing as we already have data: ${widget.categoryTotals.length} categories, total: ${widget.totalAmount}');
+    }
   }
 
   // Generate a cache key based on the current data
@@ -199,10 +209,10 @@ class _SpendingByCategoryState extends State<SpendingByCategory> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Row(
+            Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
+                Text(
                   'Spending by Category',
                   style: TextStyle(
                     color: Colors.white,

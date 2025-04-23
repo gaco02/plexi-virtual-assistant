@@ -342,12 +342,21 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen>
       listener: (context, state) {
         // Update cache when new data is loaded
         if (state is TransactionsLoaded) {
+          print(
+              'TransactionDetailsScreen: Updating cache with new TransactionsLoaded state');
+          print(
+              'TransactionDetailsScreen: Found ${state.transactions.length} transactions, monthly total: ${state.monthlyAmount}');
+
           TransactionDetailsCache.transactions = state.transactions;
           TransactionDetailsCache.monthlyTotal = state.monthlyAmount;
           TransactionDetailsCache.categoryTotals =
               _calculateCategoryTotals(state.transactions);
           TransactionDetailsCache.transactionsInitialized = true;
+
+          // Force a UI update
           setState(() => _isLoading = false);
+        } else {
+          print('TransactionDetailsScreen: Received non-loaded state: $state');
         }
       },
       child: BlocListener<TransactionAnalysisBloc, TransactionAnalysisState>(
@@ -361,6 +370,10 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen>
         },
         child: BlocBuilder<TransactionBloc, TransactionState>(
           buildWhen: (previous, current) {
+            // Debug print to track state transitions
+            print(
+                'SpendingByCategory buildWhen: previous=$previous, current=$current');
+
             // Only rebuild when we get meaningful data changes
             if (previous is TransactionsLoaded &&
                 current is TransactionsLoaded) {
@@ -395,7 +408,11 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen>
                           BlocBuilder<TransactionBloc, TransactionState>(
                             key: const ValueKey('spending_by_category'),
                             buildWhen: (previous, current) {
-                              // Always rebuild when we have a new TransactionsLoaded state
+                              // Debug print to track state transitions
+                              print(
+                                  'SpendingByCategory buildWhen: previous=$previous, current=$current');
+
+                              // Only rebuild when we have a new TransactionsLoaded state
                               if (current is TransactionsLoaded) {
                                 return true;
                               }
