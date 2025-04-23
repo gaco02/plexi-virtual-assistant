@@ -49,8 +49,26 @@ class _SpendingByCategoryState extends State<SpendingByCategory> {
     // Clear cache if the data has changed
     if (oldWidget.categoryTotals != widget.categoryTotals ||
         oldWidget.totalAmount != widget.totalAmount) {
+      print('SpendingByCategory: didUpdateWidget detected data change');
+      print(
+          'SpendingByCategory: Old total: ${oldWidget.totalAmount}, New total: ${widget.totalAmount}');
+      print(
+          'SpendingByCategory: Old categories: ${oldWidget.categoryTotals.length}, New categories: ${widget.categoryTotals.length}');
+
+      // Always invalidate the cache when the total amount changes, even if the categories appear the same
+      // This ensures we rebuild for new transactions of existing categories
       _cachedBreakdown = null;
       _cacheKey = null;
+
+      // Force rebuild when total amount changes
+      if (oldWidget.totalAmount != widget.totalAmount) {
+        // Request a refresh to make sure we have the latest data
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          context
+              .read<TransactionBloc>()
+              .add(const LoadMonthlyTransactions(forceRefresh: true));
+        });
+      }
     }
   }
 
@@ -188,6 +206,15 @@ class _SpendingByCategoryState extends State<SpendingByCategory> {
 
   @override
   Widget build(BuildContext context) {
+    // Force clear the cache with each build cycle when totals change
+    // This ensures we always rebuild with fresh data
+    if (_cacheKey != _generateCacheKey()) {
+      print(
+          'SpendingByCategory: build detected cache key change, clearing cache');
+      _cachedBreakdown = null;
+      _cacheKey = null;
+    }
+
     // If there are no categories, show a message
     if (widget.categoryTotals.isEmpty) {
       return const TransparentCard(

@@ -186,11 +186,17 @@ class TransactionBloc extends Bloc<TransactionEvent, TransactionState>
     }
   }
 
-  void _onUpdateFromChat(
+  Future<void> _onUpdateFromChat(
     UpdateTransactionsFromChat event,
     Emitter<TransactionState> emit,
   ) async {
     try {
+      print(
+          'TransactionBloc: Processing update from chat with ${event.transactions.length} transactions, totalAmount: ${event.totalAmount}');
+
+      // Always reset any caches first
+      _repository.invalidateTransactionCaches();
+
       // Check if this is just a summary (no actual transactions to save)
       bool isSummaryOnly = event.transactions.isEmpty ||
           event.transactions.any((t) =>
@@ -198,32 +204,38 @@ class TransactionBloc extends Bloc<TransactionEvent, TransactionState>
               t['description'].toString().contains('Transaction from summary'));
 
       if (isSummaryOnly) {
-        // Update the daily total
+        print('TransactionBloc: Processing summary-only update');
 
-        // Force invalidate the cache before getting new data
-        _repository.invalidateTransactionCaches();
-
-        // Get the monthly total
-        final monthlyTransactions =
-            await _repository.getTransactionsByPeriod('Month');
+        // Get the monthly total with a forced refresh to ensure latest data
+        final monthlyTransactions = await _repository
+            .getTransactionsByPeriod('Month', forceRefresh: true);
         final monthlyTotal =
             monthlyTransactions.fold(0.0, (sum, tx) => sum + tx.amount);
 
+        print('TransactionBloc: Monthly total after refresh: $monthlyTotal');
+
+        // Calculate category totals from monthly transactions
+        final categoryTotals = <TransactionCategory, double>{};
+        for (var tx in monthlyTransactions) {
+          categoryTotals[tx.category] =
+              (categoryTotals[tx.category] ?? 0) + tx.amount;
+        }
+        print(
+            'TransactionBloc: Updated category totals: ${categoryTotals.keys.length} categories');
+
         // Update the UI with the summary data
         emit(TransactionsLoaded(
-          // Keep existing transactions
-          state is TransactionsLoaded
-              ? (state as TransactionsLoaded).transactions
-              : <Transaction>[],
+          monthlyTransactions,
           todayAmount: event.totalAmount.toDouble(),
           monthlyAmount: monthlyTotal,
+          period: 'Month',
         ));
 
         // Emit the daily summary update for widgets
         emit(DailySummaryLoaded(event.totalAmount.toDouble()));
 
-        // Force reload all transaction data to ensure everything is in sync
-        add(const LoadDailyTransactions(isForWidget: true));
+        // Also emit MonthlySummaryLoaded to update spending by category
+        emit(MonthlySummaryLoaded(monthlyTotal));
 
         return; // Exit early - don't save any transactions
       }
@@ -264,8 +276,8 @@ class TransactionBloc extends Bloc<TransactionEvent, TransactionState>
           .cast<Transaction>()
           .toList();
 
-      // Force invalidate the cache before saving new transactions
-      _repository.invalidateTransactionCaches();
+      print(
+          'TransactionBloc: Processing ${transactions.length} real transactions');
 
       // Save each transaction to the repository
       for (var transaction in transactions) {
@@ -277,48 +289,48 @@ class TransactionBloc extends Bloc<TransactionEvent, TransactionState>
             'timestamp': transaction.timestamp.toIso8601String(),
           });
         } catch (e) {
-          // Keep going even if one transaction fails
+          print('TransactionBloc: Error saving transaction: $e');
         }
       }
 
-      // Get the current daily total
-      final todayTotal = await _repository.getDailyTotal();
-      final newTodayTotal = todayTotal + event.totalAmount.toDouble();
+      // Get all the data with force refresh
+      final todayTotal = await _repository.getDailyTotal(forceRefresh: true);
 
-      // Get monthly total
       final monthlyTransactions =
-          await _repository.getTransactionsByPeriod('Month');
+          await _repository.getMonthlyTransactions(forceRefresh: true);
       final monthlyTotal =
           monthlyTransactions.fold(0.0, (sum, tx) => sum + tx.amount);
 
-      if (event.isQuery) {
-        emit(TransactionsLoaded(
-          transactions,
-          todayAmount: event.totalAmount.toDouble(),
-          monthlyAmount: monthlyTotal,
-        ));
-      } else {
-        final currentTransactions = state is TransactionsLoaded
-            ? List<Transaction>.from((state as TransactionsLoaded).transactions)
-            : <Transaction>[];
-
-        currentTransactions.addAll(transactions);
-        emit(TransactionsLoaded(
-          currentTransactions,
-          todayAmount: newTodayTotal,
-          monthlyAmount: monthlyTotal + event.totalAmount.toDouble(),
-        ));
+      // Calculate category totals from monthly transactions
+      final categoryTotals = <TransactionCategory, double>{};
+      for (var tx in monthlyTransactions) {
+        categoryTotals[tx.category] =
+            (categoryTotals[tx.category] ?? 0) + tx.amount;
       }
 
-      // Always emit the daily summary update for widgets
-      emit(DailySummaryLoaded(newTodayTotal));
+      print(
+          'TransactionBloc: Updated totals - Today: $todayTotal, Monthly: $monthlyTotal');
+      print(
+          'TransactionBloc: Categories: ${categoryTotals.length} with totals: ${categoryTotals.values.fold(0.0, (sum, amount) => sum + amount)}');
 
-      // Force reload all transaction data to ensure everything is in sync
-      add(const LoadDailyTransactions(isForWidget: true));
+      // First emit the transaction loaded state with monthly transactions
+      emit(TransactionsLoaded(
+        monthlyTransactions,
+        todayAmount: todayTotal,
+        monthlyAmount: monthlyTotal,
+        period: 'Month',
+      ));
+
+      // Then emit the daily summary update for widgets
+      emit(DailySummaryLoaded(todayTotal));
+
+      // Also emit MonthlySummaryLoaded to update spending by category
+      emit(MonthlySummaryLoaded(monthlyTotal));
 
       // Also refresh the transaction analysis
       _refreshAnalysisBloc();
     } catch (e) {
+      print('TransactionBloc: Error in _onUpdateFromChat: $e');
       // Keep the current state if there's an error
       if (state is TransactionsLoaded) {
         emit(state);

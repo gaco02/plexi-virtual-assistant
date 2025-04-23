@@ -355,6 +355,27 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen>
 
           // Force a UI update
           setState(() => _isLoading = false);
+        }
+        // Special handling for MonthlySummaryLoaded state - immediately update the monthly total
+        else if (state is MonthlySummaryLoaded) {
+          print(
+              'TransactionDetailsScreen: Received MonthlySummaryLoaded with total: ${state.totalAmount}');
+
+          // If the total has changed, force a data refresh
+          if (TransactionDetailsCache.monthlyTotal != state.totalAmount) {
+            print(
+                'TransactionDetailsScreen: Monthly total changed from ${TransactionDetailsCache.monthlyTotal} to ${state.totalAmount}');
+            TransactionDetailsCache.monthlyTotal = state.totalAmount;
+
+            // Immediately request fresh transaction data to get updated categories
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              print(
+                  'TransactionDetailsScreen: Forcing refresh of transaction data');
+              context
+                  .read<TransactionBloc>()
+                  .add(const LoadMonthlyTransactions(forceRefresh: true));
+            });
+          }
         } else {
           print('TransactionDetailsScreen: Received non-loaded state: $state');
         }
@@ -412,8 +433,18 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen>
                               print(
                                   'SpendingByCategory buildWhen: previous=$previous, current=$current');
 
-                              // Only rebuild when we have a new TransactionsLoaded state
-                              if (current is TransactionsLoaded) {
+                              // For monthly summary loaded updates, we always want to rebuild
+                              if (current is MonthlySummaryLoaded) {
+                                print(
+                                    'SpendingByCategory buildWhen: Monthly summary loaded with total: ${current.totalAmount}');
+                                return true;
+                              }
+
+                              // For TransactionsLoaded updates with Monthly period, we always want to rebuild
+                              if (current is TransactionsLoaded &&
+                                  current.period == 'Month') {
+                                print(
+                                    'SpendingByCategory buildWhen: Transactions loaded with monthly data: ${current.monthlyAmount}');
                                 return true;
                               }
 
