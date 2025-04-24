@@ -5,7 +5,7 @@ import 'package:plexi_virtual_assistant/presentation/screens/calorie/onboarding/
 import 'package:plexi_virtual_assistant/presentation/screens/calorie/onboarding/weight_goal_page.dart';
 import '../../widgets/common/app_background.dart';
 import '../../widgets/common/custom_button.dart';
-import '../../widgets/common/custom_text_field.dart';
+
 import '../../../blocs/preferences/preferences_bloc.dart';
 import '../../../data/models/user_preferences.dart';
 import '../../../utils/nutrition_calculator.dart';
@@ -295,7 +295,8 @@ class _CalorieOnboardingScreenState extends State<CalorieOnboardingScreen> {
                 child: LinearProgressIndicator(
                   value: (_currentPage + 1) / _pages.length,
                   backgroundColor: Colors.white.withAlpha(77),
-                  valueColor: const AlwaysStoppedAnimation<Color>(Colors.blue),
+                  valueColor:
+                      const AlwaysStoppedAnimation<Color>(Color(0xFFfd7835)),
                   minHeight: 6,
                   borderRadius: BorderRadius.circular(3),
                 ),
@@ -359,12 +360,12 @@ class _WelcomePage extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Image.asset(
-            'assets/images/calories/calorie_maskot.png',
+            'assets/images/calories/plexi_calories_texting.png',
             height: 220,
           ),
           const SizedBox(height: 32),
           Text(
-            'Ill help you track your meals and find the right balance for your goals — one bite at a time 🍽️',
+            'Smart meal tracking for real results — one bite at a time 🍽️',
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                   color: Colors.white,

@@ -84,10 +84,14 @@ class SexSelectionPageState extends State<SexSelectionPage> {
         width: 140,
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: isSelected ? Colors.blue.withAlpha(77) : Colors.black26,
+          color: isSelected
+              ? Theme.of(context).primaryColor.withAlpha(77)
+              : Colors.black26,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: isSelected ? Colors.blue : Colors.transparent,
+            color: isSelected
+                ? Theme.of(context).primaryColor
+                : Colors.transparent,
             width: 2,
           ),
         ),

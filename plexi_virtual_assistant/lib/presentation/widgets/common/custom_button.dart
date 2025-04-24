@@ -11,7 +11,7 @@ class CustomButton extends StatelessWidget {
     Key? key,
     required this.text,
     required this.onPressed,
-    this.color = const Color(0xFFB03A2E), // Default reddish color
+    this.color = const Color(0xFFfd7835), // Default reddish color
     this.textColor = Colors.white,
     this.padding = const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
   }) : super(key: key);
