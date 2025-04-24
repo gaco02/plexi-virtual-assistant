@@ -78,6 +78,10 @@ class _BudgetGraphWidgetState extends State<BudgetGraphWidget> {
 
     // Use a post-frame callback to avoid build/setState conflicts
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      // Add mounted check here
+      if (!mounted) {
+        return; // Don't proceed if the widget is unmounted
+      }
       // Trigger a refresh of the transaction analysis data
       context
           .read<TransactionAnalysisBloc>()

@@ -241,32 +241,31 @@ class ChatMessageBubble extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Builder(builder: (context) {
-            // Debug print for the header text
-            final headerText = isLoggingAction
-                ? 'Added to your food log: ${(quantity > 1 ? "$quantity " : "")}${foodItemName ?? ""}'
-                : isQueryResponse
-                    ? 'This week\'s nutrition summary:'
-                    : isDailySummary
-                        ? 'Today\'s nutrition summary:'
-                        : 'Nutrition information:';
-
-            return const SizedBox.shrink();
-          }),
-          Text(
-            isLoggingAction
-                ? 'Added to your food log: ${(quantity > 1 ? "$quantity " : "")}${foodItemName ?? ""}'
-                : isQueryResponse
-                    ? 'This week\'s nutrition summary:'
-                    : isDailySummary
-                        ? 'Today\'s nutrition summary:'
-                        : 'Nutrition information:',
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              color: const Color(0xFF440d06),
-              fontSize: 16,
-            ),
-          ),
+          // Determine header based on message context
+          (() {
+            final msgLower = message.text.toLowerCase();
+            String headerText;
+            if (isLoggingAction) {
+              headerText =
+                  'Added to your food log: ${(quantity > 1 ? "$quantity " : "")}${foodItemName ?? ""}';
+            } else if (msgLower.contains('today')) {
+              headerText = 'Today\'s nutrition summary:';
+            } else if (msgLower.contains('week')) {
+              headerText = 'This week\'s nutrition summary:';
+            } else if (isDailySummary) {
+              headerText = 'Today\'s nutrition summary:';
+            } else {
+              headerText = 'Nutrition information:';
+            }
+            return Text(
+              headerText,
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF440d06),
+                fontSize: 16,
+              ),
+            );
+          })(),
           const SizedBox(height: 8),
           // Macronutrient summary
           Row(
