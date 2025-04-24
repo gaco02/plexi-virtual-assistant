@@ -72,10 +72,13 @@ class _TransactionAnalysisWidgetState extends State<TransactionAnalysisWidget>
 
     return BlocBuilder<TransactionAnalysisBloc, TransactionAnalysisState>(
       buildWhen: (previous, current) {
+        // Debug logging to track state changes
+        print(
+            'TransactionAnalysis buildWhen: previous=$previous, current=$current');
+
         // Only rebuild on state changes that are relevant to analysis
         if (_isFirstBuild) {
           _isFirstBuild = false;
-
           return true;
         }
 
@@ -87,8 +90,24 @@ class _TransactionAnalysisWidgetState extends State<TransactionAnalysisWidget>
               previous is TransactionAnalysisLoaded) {
             final prevAnalysis = previous.analysis;
             final currAnalysis = current.analysis;
+
+            // Compare the actual allocation data to determine if there's a change
+            final bool needsChanged =
+                prevAnalysis.actual.needs != currAnalysis.actual.needs;
+            final bool wantsChanged =
+                prevAnalysis.actual.wants != currAnalysis.actual.wants;
+            final bool savingsChanged =
+                prevAnalysis.actual.savings != currAnalysis.actual.savings;
+
             // Only rebuild if the analysis data actually changed
-            final shouldRebuild = prevAnalysis != currAnalysis;
+            final shouldRebuild = prevAnalysis != currAnalysis ||
+                needsChanged ||
+                wantsChanged ||
+                savingsChanged;
+
+            if (shouldRebuild) {
+              print('TransactionAnalysis: Analysis data changed, rebuilding');
+            }
 
             return shouldRebuild;
           }

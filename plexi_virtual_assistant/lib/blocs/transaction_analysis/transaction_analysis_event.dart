@@ -23,8 +23,8 @@ class LoadTransactionHistory extends TransactionAnalysisEvent {
   final bool forceRefresh;
 
   const LoadTransactionHistory({
-    this.period, 
-    this.date, 
+    this.period,
+    this.date,
     this.forceRefresh = false,
   });
 
@@ -61,18 +61,20 @@ class DeleteTransactionEvent extends TransactionAnalysisEvent {
 }
 
 class RefreshTransactionHistory extends TransactionAnalysisEvent {
-  const RefreshTransactionHistory();
+  final bool forceRefresh;
+
+  const RefreshTransactionHistory({this.forceRefresh = false});
 
   @override
-  List<Object> get props => [];
+  List<Object> get props => [forceRefresh];
 }
 
 class ManualRefreshAnalysis extends TransactionAnalysisEvent {
   final String? month;
   final bool forceRefresh;
-  
+
   const ManualRefreshAnalysis({this.month, this.forceRefresh = false});
-  
+
   @override
   List<Object?> get props => [month, forceRefresh];
 }
