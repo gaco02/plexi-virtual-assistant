@@ -34,6 +34,8 @@ dependencies:
   firebase_core: ^3.11.0
   firebase_auth: ^5.4.2
   google_sign_in: ^6.2.2
+  sign_in_with_apple: ^5.0.0
+  crypto: ^3.0.3
   flutter_secure_storage: ^9.0.0  # Changed from secure_storage to flutter_secure_storage
   intl: ^0.20.2
   shared_preferences: ^2.5.2

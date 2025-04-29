@@ -201,15 +201,9 @@ class _LoginScreenState extends State<LoginScreen>
                       _buildLoginButton(
                         'Sign in with Apple',
                         Icons.apple,
-                        () {
-                          if (!_isLoading) {
-                            // Apple sign-in implementation will go here
-                            ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                    content: Text(
-                                        'Apple sign-in not implemented yet')));
-                          }
-                        },
+                        () => context
+                            .read<AuthBloc>()
+                            .add(SignInWithAppleRequested()),
                         _isLoading,
                       ),
                       _buildLoginButton(

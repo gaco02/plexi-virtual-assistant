@@ -9,6 +9,8 @@ class AuthCheckRequested extends AuthEvent {}
 
 class SignInWithGoogleRequested extends AuthEvent {}
 
+class SignInWithAppleRequested extends AuthEvent {}
+
 class SignInWithEmailRequested extends AuthEvent {
   final String email;
   final String password;
@@ -71,6 +73,20 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       emit(AuthLoading());
       try {
         final userCredential = await authRepository.signInWithGoogle();
+        if (userCredential.user != null) {
+          emit(AuthAuthenticated(userCredential.user!));
+        } else {
+          emit(AuthUnauthenticated());
+        }
+      } catch (e) {
+        emit(AuthError(e.toString()));
+      }
+    });
+
+    on<SignInWithAppleRequested>((event, emit) async {
+      emit(AuthLoading());
+      try {
+        final userCredential = await authRepository.signInWithApple();
         if (userCredential.user != null) {
           emit(AuthAuthenticated(userCredential.user!));
         } else {

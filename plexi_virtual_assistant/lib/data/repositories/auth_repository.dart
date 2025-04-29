@@ -1,6 +1,10 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
+import 'package:crypto/crypto.dart';
+import 'dart:convert';
+import 'dart:math';
 import '../../services/api_service.dart';
 
 class AuthRepository {
@@ -241,5 +245,87 @@ class AuthRepository {
       return token;
     }
     throw Exception('No authenticated user');
+  }
+
+  // Sign in with Apple
+  Future<UserCredential> signInWithApple() async {
+    try {
+      print("DEBUG: Starting Apple Sign-in process");
+
+      // Generate a random string to secure the request
+      final rawNonce = _generateNonce();
+      final nonce = _sha256ofString(rawNonce);
+
+      // Request credentials for Apple Sign In
+      final appleCredential = await SignInWithApple.getAppleIDCredential(
+        scopes: [
+          AppleIDAuthorizationScopes.email,
+          AppleIDAuthorizationScopes.fullName,
+        ],
+        nonce: nonce,
+      );
+
+      print("DEBUG: Apple Sign-in successful");
+
+      // Create an OAuthCredential for Firebase
+      final oauthCredential = OAuthProvider("apple.com").credential(
+        idToken: appleCredential.identityToken,
+        rawNonce: rawNonce,
+      );
+
+      print("DEBUG: Signing in with Firebase using Apple credentials");
+      // Sign in with Firebase using the Apple OAuthCredential
+      final userCredential =
+          await _firebaseAuth.signInWithCredential(oauthCredential);
+
+      // If the user has a display name from Apple, update the Firebase user
+      if (appleCredential.givenName != null &&
+          userCredential.user != null &&
+          (userCredential.user!.displayName == null ||
+              userCredential.user!.displayName!.isEmpty)) {
+        String fullName = '';
+        if (appleCredential.givenName != null) {
+          fullName = appleCredential.givenName!;
+        }
+        if (appleCredential.familyName != null) {
+          fullName += ' ${appleCredential.familyName!}';
+        }
+
+        if (fullName.isNotEmpty) {
+          await userCredential.user!.updateDisplayName(fullName.trim());
+        }
+      }
+
+      if (userCredential.user != null) {
+        print(
+            "DEBUG: Firebase sign-in successful for user: ${userCredential.user!.email}");
+        final token = await userCredential.user!.getIdToken();
+        await _secureStorage.write(key: 'auth_token', value: token);
+        await registerUserWithBackend(userCredential.user!);
+      } else {
+        print("DEBUG: Firebase returned null user after Apple sign-in");
+      }
+
+      return userCredential;
+    } catch (e) {
+      print("DEBUG: Error during Apple sign-in: $e");
+      rethrow;
+    }
+  }
+
+  // Generate a random nonce for Apple Sign In
+  String _generateNonce([int length = 32]) {
+    const charset =
+        '0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._';
+    final random = Random.secure();
+    return List.generate(length, (_) => charset[random.nextInt(charset.length)])
+        .join();
+  }
+
+  // Return the sha256 hash of a string as a hexadecimal string
+  String _sha256ofString(String input) {
+    final bytes = utf8.encode(input);
+    final digest = sha256.convert(bytes);
+    return digest.toString();
   }
 }
