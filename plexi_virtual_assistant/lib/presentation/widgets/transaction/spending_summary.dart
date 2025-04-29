@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:plexi_virtual_assistant/presentation/widgets/skeleton/skeleton_spending_summary.dart';
+
 import '../../../blocs/transaction/transaction_bloc.dart';
 import '../../../blocs/transaction/transaction_state.dart';
 import '../../../blocs/transaction/transaction_event.dart';
@@ -226,7 +226,7 @@ class _SpendingSummaryState extends State<SpendingSummary>
                     analysisState is TransactionAnalysisLoading) &&
                 _analysisBloc.cachedAnalysis == null &&
                 _cachedAnalysis == null) {
-              return const SkeletonSpendingSummary();
+              return const SkeletonCalorieSummary();
             }
 
             // Get monthly budget from preferences

@@ -214,6 +214,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                 if (prefsState.preferences.preferredName == null ||
                     prefsState.preferences.preferredName!.isEmpty) {
                   return const NameWelcomeScreen();
+                  // return const HomeScreen();
                 } else {
                   return const HomeScreen();
                 }
