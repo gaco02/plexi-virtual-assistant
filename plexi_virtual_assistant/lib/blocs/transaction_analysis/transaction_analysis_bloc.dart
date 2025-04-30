@@ -29,6 +29,9 @@ class TransactionAnalysisBloc
   // Debounce timer for analysis requests (not currently used but kept for future implementation)
   Timer? _analysisDebounceTimer;
 
+  // Track when the last network refresh was made (for periodic background syncs)
+  DateTime? _lastNetworkSyncTime;
+
   TransactionAnalysisBloc({required TransactionRepository repository})
       : _repository = repository,
         super(TransactionAnalysisInitial()) {
@@ -323,6 +326,17 @@ class TransactionAnalysisBloc
     }
   }
 
+  // Check if we should do a network sync based on time elapsed
+  bool _shouldPerformNetworkSync() {
+    // Always sync if we've never synced before
+    if (_lastNetworkSyncTime == null) return true;
+
+    // Check if it's been at least 1 hour since last sync
+    final now = DateTime.now();
+    final timeSinceLastSync = now.difference(_lastNetworkSyncTime!);
+    return timeSinceLastSync.inMinutes >= 60; // Sync once per hour at most
+  }
+
   Future<void> _onRefreshHistory(
     RefreshTransactionHistory event,
     Emitter<TransactionAnalysisState> emit,
@@ -334,58 +348,46 @@ class TransactionAnalysisBloc
         emit(combinedState.copyWith(isRefreshing: true));
       }
 
-      // Check if we've made a request recently (within last 5 minutes)
-      // Skip unnecessary refreshes unless forcing
-      final now = DateTime.now();
-      final shouldSkipBasedOnTime = _lastAnalysisRequestTime != null &&
-          now.difference(_lastAnalysisRequestTime!).inMinutes < 5 &&
-          !event.forceRefresh;
+      // Force refresh from network if:
+      // 1. User explicitly requested it via forceRefresh
+      // 2. We haven't synced in over an hour
+      // 3. We don't have any cached data yet
+      final shouldUseNetwork = event.forceRefresh ||
+          _shouldPerformNetworkSync() ||
+          _cachedAnalysis == null;
 
-      if (shouldSkipBasedOnTime &&
-          _cachedAnalysis != null &&
-          _cachedHistory != null) {
-        print(
-            'TransactionAnalysisBloc: Skipping refresh, last request was less than 5 minutes ago');
-        // Still update the UI with cached data
-        if (_usingCombinedState && state is TransactionCombinedState) {
-          final combinedState = state as TransactionCombinedState;
-          emit(combinedState.copyWith(isRefreshing: false));
-        }
-        return;
-      }
-
-      // If forceRefresh is true, invalidate caches first
-      if (event.forceRefresh) {
-        print('TransactionAnalysisBloc: Force refreshing transaction data');
-        _cachedAnalysis = null;
+      if (shouldUseNetwork) {
+        print('TransactionAnalysisBloc: Performing network sync');
+        _lastNetworkSyncTime = DateTime.now(); // Update sync timestamp
         _repository.invalidateTransactionCaches();
+      } else {
+        print(
+            'TransactionAnalysisBloc: Using local storage data (network sync not needed)');
       }
-
-      // Update the last request time
-      _lastAnalysisRequestTime = now;
 
       // Get the current month in YYYY-MM format
+      final now = DateTime.now();
       final currentMonth =
           '${now.year}-${now.month.toString().padLeft(2, '0')}';
 
-      // Get the latest analysis data - use forceRefreshAnalysis if requested
-      final analysis = event.forceRefresh
+      // Get transaction analysis data (from network or local cache)
+      final analysis = shouldUseNetwork
           ? await _repository.forceRefreshAnalysis(currentMonth)
           : await _repository.getTransactionAnalysis(currentMonth);
 
-      // Cache the analysis data
+      // Store in cache
       _cachedAnalysis = analysis;
 
-      // Get the latest transaction history using the forceRefresh parameter
+      // Get transaction history (from network or local cache)
       final history = await _repository.getTransactionHistory(
           _cachedHistoryPeriod ?? 'month',
           _cachedHistoryDate,
-          event.forceRefresh);
+          shouldUseNetwork);
 
-      // Cache the history data
+      // Store in cache
       _cachedHistory = history;
 
-      // Emit the appropriate state based on what we're using
+      // Update the UI with the data
       if (_usingCombinedState) {
         if (state is TransactionCombinedState) {
           final combinedState = state as TransactionCombinedState;
@@ -395,22 +397,23 @@ class TransactionAnalysisBloc
               isRefreshing: false));
         }
       } else {
-        // Emit separate states for analysis and history
         emit(TransactionAnalysisLoaded(analysis));
         emit(TransactionHistoryLoaded(history));
       }
 
+      // Update the last analysis request time
+      _lastAnalysisRequestTime = DateTime.now();
+
       print(
-          'TransactionAnalysisBloc: Refresh complete. Analysis total - Needs: ${analysis.actual.needs}, Wants: ${analysis.actual.wants}, Savings: ${analysis.actual.savings}');
+          'TransactionAnalysisBloc: Refresh complete using ${shouldUseNetwork ? "network" : "local"} data. Analysis total - Needs: ${analysis.actual.needs}, Wants: ${analysis.actual.wants}, Savings: ${analysis.actual.savings}');
     } catch (e) {
       print('TransactionAnalysisBloc: Error refreshing history: $e');
-      // If there's an error, try to refresh just the data we have cached
+      // If there's an error, try to use cached data
       if (_cachedHistoryPeriod != null) {
         add(LoadTransactionHistory(
           period: _cachedHistoryPeriod,
           date: _cachedHistoryDate,
-          forceRefresh:
-              false, // Don't force refresh to avoid potential infinite loops
+          forceRefresh: false,
         ));
       }
 

@@ -24,8 +24,7 @@ class _BudgetGraphWidgetState extends State<BudgetGraphWidget> {
   late TransactionAllocation _previousActual;
   String _cacheKey = '';
   bool _initialRefreshDone = false;
-  DateTime _lastRefreshTime =
-      DateTime.now().subtract(const Duration(minutes: 10));
+  bool _hasNewTransactions = false;
 
   @override
   void initState() {
@@ -33,33 +32,37 @@ class _BudgetGraphWidgetState extends State<BudgetGraphWidget> {
     _previousActual = widget.actual;
     _generateCacheKey();
 
-    // Request a data refresh only once when first built
-    if (!_initialRefreshDone) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _initialRefreshDone = true;
-        _refreshDataIfNeeded(forceRefresh: false);
-      });
-    }
+    // Wait for first frame to be rendered before requesting data
+    // This prevents UI jank during initial load
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initialRefreshDone = true;
+      // Only trigger initial refresh if we don't have data
+      if (_isDataEmpty()) {
+        _refreshDataIfNeeded();
+      }
+    });
+  }
+
+  // Check if we have empty data
+  bool _isDataEmpty() {
+    return widget.actual.needs <= 0 &&
+        widget.actual.wants <= 0 &&
+        widget.actual.savings <= 0;
   }
 
   @override
   void didUpdateWidget(BudgetGraphWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    // Only refresh in specific cases, not on every rebuild
+    // Only detect significant changes in transaction data, not UI rebuilds
+    final valueChanged = oldWidget.actual.needs != widget.actual.needs ||
+        oldWidget.actual.wants != widget.actual.wants ||
+        oldWidget.actual.savings != widget.actual.savings;
 
-    // Case 1: Significant value changes in the data (not just UI rebuilds)
-    final significantChange =
-        (oldWidget.actual.needs - widget.actual.needs).abs() > 0.01 ||
-            (oldWidget.actual.wants - widget.actual.wants).abs() > 0.01 ||
-            (oldWidget.actual.savings - widget.actual.savings).abs() > 0.01;
-
-    // Case 2: If ideal values changed (budget targets updated)
     final idealChanged = oldWidget.ideal != widget.ideal;
 
-    if (significantChange) {
-      print(
-          'BudgetGraphWidget: Significant value changes detected, updating display');
+    if (valueChanged) {
+      print('BudgetGraphWidget: Value changes detected, updating display');
       print(
           'Previous: needs=${oldWidget.actual.needs}, wants=${oldWidget.actual.wants}, savings=${oldWidget.actual.savings}');
       print(
@@ -67,21 +70,21 @@ class _BudgetGraphWidgetState extends State<BudgetGraphWidget> {
 
       // Store the new actual values
       _previousActual = widget.actual;
-
-      // Update cache key to reflect new values but don't trigger a refresh
       _cacheKey = '';
       _generateCacheKey();
 
-      // Only refresh data if it's been at least 5 minutes since last refresh
-      final timeSinceLastRefresh = DateTime.now().difference(_lastRefreshTime);
-      if (timeSinceLastRefresh.inMinutes >= 5) {
-        _refreshDataIfNeeded(forceRefresh: false);
-      }
+      // Flag that we've received new transaction data
+      _hasNewTransactions = true;
     } else if (idealChanged) {
-      // Just update the display when budget targets change, don't refresh
       print('BudgetGraphWidget: Budget targets changed, updating display');
       _cacheKey = '';
       _generateCacheKey();
+    }
+
+    // If we have new transactions, refresh to get complete updated data
+    if (_hasNewTransactions) {
+      _hasNewTransactions = false; // Reset flag
+      _refreshDataIfNeeded();
     }
   }
 
@@ -93,26 +96,15 @@ class _BudgetGraphWidgetState extends State<BudgetGraphWidget> {
   }
 
   // Check if data refresh is needed and request it
-  void _refreshDataIfNeeded({bool forceRefresh = false}) {
-    // Skip refreshing if another refresh happened recently (within 5 minutes)
-    final timeSinceLastRefresh = DateTime.now().difference(_lastRefreshTime);
-    if (!forceRefresh && timeSinceLastRefresh.inMinutes < 5) {
-      print(
-          'BudgetGraphWidget: Skipping refresh, last refresh was ${timeSinceLastRefresh.inMinutes} minutes ago');
-      return;
-    }
-
-    print('BudgetGraphWidget: Refreshing transaction analysis data');
-    _lastRefreshTime = DateTime.now();
+  void _refreshDataIfNeeded() {
+    print('BudgetGraphWidget: Requesting latest transaction data');
 
     // Use a post-frame callback to avoid build/setState conflicts
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      // Add mounted check here
-      if (!mounted) {
-        return; // Don't proceed if the widget is unmounted
-      }
-      // Trigger a refresh of the transaction analysis data
-      // Set forceRefresh to false to avoid unnecessary network calls
+      if (!mounted) return;
+
+      // Request latest data from local storage first
+      // Only force refresh from server if local data is stale
       context
           .read<TransactionAnalysisBloc>()
           .add(const RefreshTransactionHistory(forceRefresh: false));
