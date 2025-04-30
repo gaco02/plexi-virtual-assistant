@@ -334,6 +334,26 @@ class TransactionAnalysisBloc
         emit(combinedState.copyWith(isRefreshing: true));
       }
 
+      // Check if we've made a request recently (within last 5 minutes)
+      // Skip unnecessary refreshes unless forcing
+      final now = DateTime.now();
+      final shouldSkipBasedOnTime = _lastAnalysisRequestTime != null &&
+          now.difference(_lastAnalysisRequestTime!).inMinutes < 5 &&
+          !event.forceRefresh;
+
+      if (shouldSkipBasedOnTime &&
+          _cachedAnalysis != null &&
+          _cachedHistory != null) {
+        print(
+            'TransactionAnalysisBloc: Skipping refresh, last request was less than 5 minutes ago');
+        // Still update the UI with cached data
+        if (_usingCombinedState && state is TransactionCombinedState) {
+          final combinedState = state as TransactionCombinedState;
+          emit(combinedState.copyWith(isRefreshing: false));
+        }
+        return;
+      }
+
       // If forceRefresh is true, invalidate caches first
       if (event.forceRefresh) {
         print('TransactionAnalysisBloc: Force refreshing transaction data');
@@ -341,13 +361,15 @@ class TransactionAnalysisBloc
         _repository.invalidateTransactionCaches();
       }
 
+      // Update the last request time
+      _lastAnalysisRequestTime = now;
+
       // Get the current month in YYYY-MM format
-      final now = DateTime.now();
       final currentMonth =
           '${now.year}-${now.month.toString().padLeft(2, '0')}';
 
       // Get the latest analysis data - use forceRefreshAnalysis if requested
-      final analysis = event.forceRefresh 
+      final analysis = event.forceRefresh
           ? await _repository.forceRefreshAnalysis(currentMonth)
           : await _repository.getTransactionAnalysis(currentMonth);
 
@@ -377,8 +399,9 @@ class TransactionAnalysisBloc
         emit(TransactionAnalysisLoaded(analysis));
         emit(TransactionHistoryLoaded(history));
       }
-      
-      print('TransactionAnalysisBloc: Refresh complete. Analysis total - Needs: ${analysis.actual.needs}, Wants: ${analysis.actual.wants}, Savings: ${analysis.actual.savings}');
+
+      print(
+          'TransactionAnalysisBloc: Refresh complete. Analysis total - Needs: ${analysis.actual.needs}, Wants: ${analysis.actual.wants}, Savings: ${analysis.actual.savings}');
     } catch (e) {
       print('TransactionAnalysisBloc: Error refreshing history: $e');
       // If there's an error, try to refresh just the data we have cached
@@ -386,11 +409,12 @@ class TransactionAnalysisBloc
         add(LoadTransactionHistory(
           period: _cachedHistoryPeriod,
           date: _cachedHistoryDate,
-          forceRefresh: false, // Don't force refresh to avoid potential infinite loops
+          forceRefresh:
+              false, // Don't force refresh to avoid potential infinite loops
         ));
       }
 
-      add(LoadTransactionAnalysis(forceRefresh: false)); 
+      add(LoadTransactionAnalysis(forceRefresh: false));
     }
   }
 

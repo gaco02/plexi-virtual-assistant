@@ -12,7 +12,6 @@ class TransactionBloc extends Bloc<TransactionEvent, TransactionState>
     with DailyRefreshMixin {
   final TransactionRepository _repository;
   final TransactionAnalysisBloc? _analysisBloc;
-  Timer? _refreshTimer;
 
   TransactionBloc({
     required TransactionRepository repository,
@@ -20,13 +19,6 @@ class TransactionBloc extends Bloc<TransactionEvent, TransactionState>
   })  : _repository = repository,
         _analysisBloc = analysisBloc,
         super(TransactionInitial()) {
-    // Check for refresh every minute
-    _refreshTimer = Timer.periodic(const Duration(minutes: 1), (_) {
-      if (shouldRefresh()) {
-        add(const LoadDailyTransactions());
-      }
-    });
-
     on<LoadDailyTransactions>(_onLoadDaily);
     on<LoadMonthlyTransactions>(_onLoadMonthly);
     on<AddTransaction>(_onAddTransaction);
@@ -39,7 +31,6 @@ class TransactionBloc extends Bloc<TransactionEvent, TransactionState>
 
   @override
   Future<void> close() {
-    _refreshTimer?.cancel();
     return super.close();
   }
 
@@ -48,20 +39,27 @@ class TransactionBloc extends Bloc<TransactionEvent, TransactionState>
     Emitter<TransactionState> emit,
   ) async {
     try {
-      // If forceRefresh is true, invalidate caches first
+      // Only invalidate caches if explicitly requested with forceRefresh
+      // This reduces unnecessary network calls
       if (event.forceRefresh) {
         _repository.invalidateTransactionCaches();
       }
 
-      final todayTotal = await _repository.getDailyTotal();
+      // Get daily total without forcing refresh by default
+      final todayTotal =
+          await _repository.getDailyTotal(forceRefresh: event.forceRefresh);
 
       // Only emit DailySummaryLoaded if this was triggered by the widget
       if (event.isForWidget == true) {
         emit(DailySummaryLoaded(todayTotal));
       } else {
-        final transactions = await _repository.getDailyTransactions();
-        final monthlyTransactions =
-            await _repository.getTransactionsByPeriod('Month');
+        // Get transactions without forcing refresh by default
+        final transactions = await _repository.getDailyTransactions(
+            forceRefresh: event.forceRefresh);
+
+        final monthlyTransactions = await _repository
+            .getTransactionsByPeriod('Month', forceRefresh: event.forceRefresh);
+
         final monthlyTotal =
             monthlyTransactions.fold(0.0, (sum, tx) => sum + tx.amount);
 
@@ -88,12 +86,16 @@ class TransactionBloc extends Bloc<TransactionEvent, TransactionState>
     try {
       emit(TransactionLoading());
 
-      // If forceRefresh is true, invalidate caches first
+      // Only invalidate caches if explicitly requested
+      // This reduces unnecessary network calls
       if (event.forceRefresh) {
         _repository.invalidateTransactionCaches();
       }
 
-      final transactions = await _repository.getMonthlyTransactions();
+      // Get monthly transactions without forcing refresh by default
+      final transactions = await _repository.getMonthlyTransactions(
+          forceRefresh: event.forceRefresh);
+
       final monthlyTotal = transactions.fold<double>(
           0, (sum, transaction) => sum + transaction.amount);
 
@@ -101,7 +103,9 @@ class TransactionBloc extends Bloc<TransactionEvent, TransactionState>
       if (event.isForWidget == true) {
         emit(MonthlySummaryLoaded(monthlyTotal));
       } else {
-        final todayTotal = await _repository.getDailyTotal();
+        // Get daily total without forcing refresh
+        final todayTotal =
+            await _repository.getDailyTotal(forceRefresh: event.forceRefresh);
 
         emit(TransactionsLoaded(
           transactions,
@@ -194,7 +198,7 @@ class TransactionBloc extends Bloc<TransactionEvent, TransactionState>
       print(
           'TransactionBloc: Processing update from chat with ${event.transactions.length} transactions, totalAmount: ${event.totalAmount}');
 
-      // Always reset any caches first
+      // Always reset any caches first when we have new data from chat
       _repository.invalidateTransactionCaches();
 
       // Check if this is just a summary (no actual transactions to save)
@@ -223,19 +227,16 @@ class TransactionBloc extends Bloc<TransactionEvent, TransactionState>
         print(
             'TransactionBloc: Updated category totals: ${categoryTotals.keys.length} categories');
 
-        // Update the UI with the summary data
+        // Update the UI with the summary data - CONSOLIDATED TO A SINGLE STATE EMISSION
+        // Instead of emitting 3 separate states, we emit a single comprehensive state
         emit(TransactionsLoaded(
           monthlyTransactions,
           todayAmount: event.totalAmount.toDouble(),
           monthlyAmount: monthlyTotal,
           period: 'Month',
+          // Add a flag to indicate this is a summary update so widgets can react accordingly
+          isInitialLoad: false,
         ));
-
-        // Emit the daily summary update for widgets
-        emit(DailySummaryLoaded(event.totalAmount.toDouble()));
-
-        // Also emit MonthlySummaryLoaded to update spending by category
-        emit(MonthlySummaryLoaded(monthlyTotal));
 
         return; // Exit early - don't save any transactions
       }
@@ -293,7 +294,7 @@ class TransactionBloc extends Bloc<TransactionEvent, TransactionState>
         }
       }
 
-      // Get all the data with force refresh
+      // Get all the data with force refresh since we've added new transactions
       final todayTotal = await _repository.getDailyTotal(forceRefresh: true);
 
       final monthlyTransactions =
@@ -313,21 +314,17 @@ class TransactionBloc extends Bloc<TransactionEvent, TransactionState>
       print(
           'TransactionBloc: Categories: ${categoryTotals.length} with totals: ${categoryTotals.values.fold(0.0, (sum, amount) => sum + amount)}');
 
-      // First emit the transaction loaded state with monthly transactions
+      // CONSOLIDATED STATE EMISSION - emit a single state with all data
+      // Instead of emitting 3 separate states that trigger UI rebuilds
       emit(TransactionsLoaded(
         monthlyTransactions,
         todayAmount: todayTotal,
         monthlyAmount: monthlyTotal,
         period: 'Month',
+        isInitialLoad: false,
       ));
 
-      // Then emit the daily summary update for widgets
-      emit(DailySummaryLoaded(todayTotal));
-
-      // Also emit MonthlySummaryLoaded to update spending by category
-      emit(MonthlySummaryLoaded(monthlyTotal));
-
-      // Also refresh the transaction analysis
+      // Still refresh analysis bloc since we have new data
       _refreshAnalysisBloc();
     } catch (e) {
       print('TransactionBloc: Error in _onUpdateFromChat: $e');

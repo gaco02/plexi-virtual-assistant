@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -198,14 +199,16 @@ class _LoginScreenState extends State<LoginScreen>
                             .add(SignInWithGoogleRequested()),
                         _isLoading,
                       ),
-                      _buildLoginButton(
-                        'Sign in with Apple',
-                        Icons.apple,
-                        () => context
-                            .read<AuthBloc>()
-                            .add(SignInWithAppleRequested()),
-                        _isLoading,
-                      ),
+                      // Only show Apple Sign In button on iOS and macOS
+                      if (Platform.isIOS || Platform.isMacOS)
+                        _buildLoginButton(
+                          'Sign in with Apple',
+                          Icons.apple,
+                          () => context
+                              .read<AuthBloc>()
+                              .add(SignInWithAppleRequested()),
+                          _isLoading,
+                        ),
                       _buildLoginButton(
                         'Sign in with Email',
                         Icons.email,

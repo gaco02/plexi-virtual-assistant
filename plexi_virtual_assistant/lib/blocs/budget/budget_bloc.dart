@@ -41,14 +41,24 @@ class BudgetBloc extends Bloc<BudgetEvent, BudgetState> {
     // Listen to the TransactionBloc state changes
     _transactionSubscription = _transactionBloc.stream.listen(
       (state) {
-        // When daily summary is loaded, update the budget with the latest transaction data
+        // When daily summary is loaded with new data, update the budget
+        // Only refresh if explicitly requested or when the data actually changes
         if (state is DailySummaryLoaded) {
-          add(LoadTodaysBudget(forceRefresh: true));
+          // Check if we have recent data before forcing a refresh
+          final timeSinceLastFetch =
+              DateTime.now().difference(_lastBudgetFetch);
+          final shouldRefresh = timeSinceLastFetch.inMinutes >= 5;
+          add(LoadTodaysBudget(forceRefresh: shouldRefresh));
         }
 
-        // When transactions are loaded, also update the budget
-        if (state is TransactionsLoaded) {
-          add(LoadTodaysBudget(forceRefresh: true));
+        // When transactions are loaded with new data, update the budget
+        // Only refresh if the transactions might have changed
+        if (state is TransactionsLoaded && state.isInitialLoad != false) {
+          // Check if we have recent data before forcing a refresh
+          final timeSinceLastFetch =
+              DateTime.now().difference(_lastBudgetFetch);
+          final shouldRefresh = timeSinceLastFetch.inMinutes >= 5;
+          add(LoadTodaysBudget(forceRefresh: shouldRefresh));
         }
       },
     );

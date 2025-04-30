@@ -11,6 +11,7 @@ import '../../../blocs/transaction_analysis/transaction_analysis_state.dart';
 import '../../../blocs/preferences/preferences_bloc.dart';
 import '../../../data/models/transaction.dart';
 import '../../../data/models/transaction_analysis.dart';
+import '../../../data/local/network_connectivity_service.dart';
 import '../../widgets/transaction/transaction_analysis.dart';
 import '../../widgets/transaction/transaction_history.dart';
 import '../../widgets/transaction/spending_summary.dart';
@@ -42,6 +43,8 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen>
   int _previousTabIndex = 0;
   bool _isFirstLoad = true;
   bool _isLoading = false;
+  bool _isOnline = true;
+  StreamSubscription? _connectivitySubscription;
 
   // We'll now always use 'Month' as our default period
   String _selectedTimeFrame = 'Month';
@@ -78,10 +81,46 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen>
       }
     });
 
+    // Set up connectivity status listener
+    _setupConnectivityListener();
+
     // Load initial data after the first frame is rendered
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadInitialData();
     });
+  }
+
+  // Set up connectivity listener
+  void _setupConnectivityListener() {
+    // Get the initial connectivity status
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final connectivityService = context.read<NetworkConnectivityService>();
+      _isOnline = await connectivityService.checkConnectivity();
+      setState(() {});
+
+      // Listen for connectivity changes
+      _connectivitySubscription =
+          connectivityService.connectionStatus.listen((isConnected) {
+        if (mounted) {
+          setState(() {
+            _isOnline = isConnected;
+          });
+
+          // If we just came back online, try to sync data
+          if (isConnected && !_isLoading) {
+            _syncDataIfOnline();
+          }
+        }
+      });
+    });
+  }
+
+  // Sync data when coming back online
+  void _syncDataIfOnline() {
+    if (_isOnline) {
+      // Load fresh data based on current tab
+      _loadDataForCurrentTab(forceRefresh: true, useCache: false);
+    }
   }
 
   @override
@@ -102,6 +141,7 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen>
   void dispose() {
     _debounceTimer?.cancel();
     _tabController.dispose();
+    _connectivitySubscription?.cancel();
     super.dispose();
   }
 
@@ -215,6 +255,7 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen>
   /// Load data based on the current tab
   void _loadDataForCurrentTab(
       {bool forceRefresh = false, bool useCache = true}) {
+    // Don't reload if we're already loading
     if (_isLoading) {
       return;
     }
@@ -224,37 +265,57 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen>
     final transactionBloc = context.read<TransactionBloc>();
     final analysisBloc = context.read<TransactionAnalysisBloc>();
 
-    // Use cached data if available and requested
-    if (useCache &&
-        TransactionDetailsCache.transactionsInitialized &&
-        TransactionDetailsCache.analysisInitialized) {
-      setState(() => _isLoading = false);
-      return;
+    // First check if we can use cached data
+    if (useCache) {
+      // For transaction data
+      if (TransactionDetailsCache.transactionsInitialized) {
+        // For analysis data
+        if (TransactionDetailsCache.analysisInitialized ||
+            analysisBloc.cachedAnalysis != null) {
+          // Use the cached analysis data if available
+          if (analysisBloc.cachedAnalysis != null) {
+            TransactionDetailsCache.analysis = analysisBloc.cachedAnalysis;
+          }
+
+          // If we have all cached data and don't need to force refresh, just update UI
+          if (!forceRefresh) {
+            setState(() => _isLoading = false);
+            return;
+          }
+        }
+      }
     }
 
-    // Only load analysis data if it's not already cached
-    if (analysisBloc.cachedAnalysis == null &&
-        TransactionDetailsCache.analysis == null) {
-      analysisBloc.add(const LoadTransactionAnalysis());
-    } else {
-      // Use the cached analysis data
-      if (analysisBloc.cachedAnalysis != null) {
+    // Only load analysis data when on the analysis tab or when we force a refresh
+    if (_tabController.index == 0 || forceRefresh) {
+      // Only load new analysis if we don't already have it cached or need to force refresh
+      if (analysisBloc.cachedAnalysis == null ||
+          !TransactionDetailsCache.analysisInitialized ||
+          forceRefresh) {
+        analysisBloc.add(const LoadTransactionAnalysis());
+      } else {
+        // Use the cached analysis data
         TransactionDetailsCache.analysis = analysisBloc.cachedAnalysis;
       }
     }
 
-    // Load data based on the current tab
+    // Load data based on the current tab - but don't reload if we have recent data
     if (_tabController.index == 0) {
-      // Summary tab - load monthly data
-      transactionBloc.add(LoadMonthlyTransactions(forceRefresh: forceRefresh));
+      // Summary tab - load monthly data only if needed
+      transactionBloc.add(LoadMonthlyTransactions(
+          forceRefresh: forceRefresh,
+          isForWidget: true // This helps bloc know we only need summary data
+          ));
     } else {
-      // History tab - load transaction history
-      context.read<TransactionAnalysisBloc>().add(
-            LoadTransactionHistory(
-              period: analysisPeriod,
-              date: todayStr,
-            ),
-          );
+      // History tab - load transaction history if needed
+      if (!TransactionDetailsCache.transactionsInitialized || forceRefresh) {
+        context.read<TransactionAnalysisBloc>().add(
+              LoadTransactionHistory(
+                period: analysisPeriod,
+                date: todayStr,
+              ),
+            );
+      }
     }
   }
 
@@ -294,9 +355,37 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen>
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: const Text(
-          'Transactions',
-          style: TextStyle(color: Colors.white),
+        title: Row(
+          children: [
+            const Text(
+              'Transactions',
+              style: TextStyle(color: Colors.white),
+            ),
+            const Spacer(),
+            // Add offline indicator
+            if (!_isOnline)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade800,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.cloud_off, color: Colors.white, size: 16),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Offline',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
         ),
         iconTheme: const IconThemeData(color: Colors.white),
         bottom: TabBar(
@@ -317,6 +406,37 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen>
             children: [
               const SizedBox(height: 16),
 
+              // Offline message banner when working with local data
+              if (!_isOnline)
+                Container(
+                  width: double.infinity,
+                  margin:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.shade100,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.orange.shade300),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.info_outline,
+                          color: Colors.orange.shade800, size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'You\'re currently offline. Viewing locally stored data.',
+                          style: TextStyle(
+                            color: Colors.orange.shade800,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
               // Wrap TabBarView in Expanded
               Expanded(
                 child: TabBarView(
@@ -328,6 +448,71 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen>
                     ),
                   ],
                 ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          _showAddTransactionDialog(context);
+        },
+        backgroundColor: Theme.of(context).colorScheme.secondary,
+        child: const Icon(Icons.add),
+      ),
+    );
+  }
+
+  // Show dialog to add a new transaction
+  void _showAddTransactionDialog(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(20),
+            topRight: Radius.circular(20),
+          ),
+        ),
+        padding: const EdgeInsets.all(16),
+        child: Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(context).viewInsets.bottom,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Add Transaction',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                _isOnline
+                    ? 'Your transaction will be saved online'
+                    : 'You\'re offline. Your transaction will be saved locally and synced when you\'re back online.',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: _isOnline ? Colors.black54 : Colors.orange.shade800,
+                ),
+              ),
+              const SizedBox(height: 16),
+              // Add your transaction form here
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  // You would add your transaction here
+                  // Then refresh data
+                  _loadDataForCurrentTab(forceRefresh: true);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Theme.of(context).colorScheme.primary,
+                ),
+                child: const Text('Add Transaction'),
               ),
             ],
           ),

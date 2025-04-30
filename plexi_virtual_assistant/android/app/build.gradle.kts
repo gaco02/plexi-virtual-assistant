@@ -43,4 +43,9 @@ flutter {
     source = "../.."
 }
 
+// Exclude sign_in_with_apple plugin for Android builds
+configurations.all {
+    exclude(group = "", module = "sign_in_with_apple")
+}
+
 apply(plugin = "com.google.gms.google-services")

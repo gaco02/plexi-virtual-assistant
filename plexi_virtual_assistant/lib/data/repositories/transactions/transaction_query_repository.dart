@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:intl/intl.dart';
 import '../../models/transaction.dart';
+import '../../local/network_connectivity_service.dart';
+import '../../local/transaction_local_data_source.dart';
 import 'transaction_api_service.dart';
 import 'transaction_cache.dart';
 
@@ -8,8 +10,17 @@ import 'transaction_cache.dart';
 class TransactionQueryRepository {
   final TransactionApiService _apiService;
   final TransactionCache _cache;
+  final TransactionLocalDataSource _localDataSource;
+  final NetworkConnectivityService _connectivityService;
 
-  TransactionQueryRepository(this._apiService, this._cache);
+  TransactionQueryRepository(
+    this._apiService,
+    this._cache, {
+    TransactionLocalDataSource? localDataSource,
+    NetworkConnectivityService? connectivityService,
+  })  : _localDataSource = localDataSource ?? TransactionLocalDataSource(),
+        _connectivityService =
+            connectivityService ?? NetworkConnectivityService();
 
   /// Helper method to convert dynamic data to Transaction objects
   List<Transaction> _convertToTransactions(List<dynamic> data) {
@@ -29,14 +40,22 @@ class TransactionQueryRepository {
   }
 
   /// Get daily transactions for the current user
-  Future<List<Transaction>> getDailyTransactions() async {
+  Future<List<Transaction>> getDailyTransactions(
+      {bool forceRefresh = false}) async {
     try {
-      // Check cache first
+      // Generate cache key
       final cacheKey = 'daily_transactions';
-      final cachedData = await _cache.get<List<Transaction>>(cacheKey,
-          maxAge: TransactionCache.shortCacheDuration);
-      if (cachedData != null) {
-        return cachedData;
+
+      // If forcing refresh, invalidate cache
+      if (forceRefresh) {
+        _cache.invalidate(cacheKey);
+      } else {
+        // Check cache first if not forcing refresh
+        final cachedData = await _cache.get<List<Transaction>>(cacheKey,
+            maxAge: TransactionCache.shortCacheDuration);
+        if (cachedData != null) {
+          return cachedData;
+        }
       }
 
       // Check if request is already in flight
@@ -66,43 +85,71 @@ class TransactionQueryRepository {
         return [];
       }
 
-      final response = await _apiService.post('/budget/transactions', {
-        'user_id': userId,
-        'period': 'daily',
-      });
+      // Check if we're online
+      final isOnline = await _connectivityService.checkConnectivity();
 
-      // Handle both response formats: direct list or object with transactions key
-      List<dynamic> transactionsList;
-      if (response is List) {
-        // Server returned a direct list
-        transactionsList = response;
-      } else if (response is Map<String, dynamic>) {
-        // Server returned an object with a transactions key
-        if (!response.containsKey('success') || response['success'] != true) {
+      if (isOnline &&
+          (forceRefresh || !(await _isCachedDataSufficient(userId, 'daily')))) {
+        // Online: Get from API
+        try {
+          final response = await _apiService.post('/budget/transactions', {
+            'user_id': userId,
+            'period': 'daily',
+            'force_refresh': forceRefresh,
+          });
+
+          // Handle both response formats: direct list or object with transactions key
+          List<dynamic> transactionsList;
+          if (response is List) {
+            // Server returned a direct list
+            transactionsList = response;
+          } else if (response is Map<String, dynamic>) {
+            // Server returned an object with a transactions key
+            if (!response.containsKey('success') ||
+                response['success'] != true) {
+              _cache.completeRequest(cacheKey);
+              return []; // Return empty list if response indicates failure
+            }
+
+            if (!response.containsKey('transactions')) {
+              _cache.completeRequest(cacheKey);
+              return []; // Return empty list if no transactions key
+            }
+
+            transactionsList = response['transactions'];
+          } else {
+            // Unexpected response format
+            _cache.completeRequest(cacheKey);
+            return [];
+          }
+
+          // Convert the dynamic list to a list of Transaction objects
+          final transactions = _convertToTransactions(transactionsList);
+
+          // Cache the result in memory
+          _cache.set(cacheKey, transactions);
+
+          // Also store in local database for offline access
+          await _localDataSource.saveTransactions(transactions);
+
           _cache.completeRequest(cacheKey);
-          return []; // Return empty list if response indicates failure
-        }
-
-        if (!response.containsKey('transactions')) {
+          return transactions;
+        } catch (e) {
+          // If API request fails, fall back to local database
+          final transactions = await _localDataSource
+              .getTransactionsByUserIdAndPeriod(userId, 'daily');
+          _cache.set(cacheKey, transactions);
           _cache.completeRequest(cacheKey);
-          return []; // Return empty list if no transactions key
+          return transactions;
         }
-
-        transactionsList = response['transactions'];
       } else {
-        // Unexpected response format
+        // Offline: Get from local database
+        final transactions = await _localDataSource
+            .getTransactionsByUserIdAndPeriod(userId, 'daily');
+        _cache.set(cacheKey, transactions);
         _cache.completeRequest(cacheKey);
-        return [];
+        return transactions;
       }
-
-      // Convert the dynamic list to a list of Transaction objects
-      final transactions = _convertToTransactions(transactionsList);
-
-      // Cache the result
-      _cache.set(cacheKey, transactions);
-      _cache.completeRequest(cacheKey);
-
-      return transactions;
     } catch (e) {
       final cacheKey = 'daily_transactions';
       _cache.completeRequestWithError(cacheKey, e);
@@ -132,7 +179,6 @@ class TransactionQueryRepository {
       }
 
       // Get fresh data
-
       final List<Transaction> transactions =
           await getTransactionsByPeriod('Month', forceRefresh: false);
 
@@ -140,6 +186,14 @@ class TransactionQueryRepository {
       _cache.set('monthly_transactions', transactions);
       return transactions;
     } catch (e) {
+      // On error, try getting from local database
+      try {
+        final userId = _apiService.getCurrentUserId();
+        if (userId != null) {
+          return await _localDataSource.getTransactionsByUserIdAndPeriod(
+              userId, 'monthly');
+        }
+      } catch (_) {}
       return [];
     }
   }
@@ -190,49 +244,88 @@ class TransactionQueryRepository {
         return [];
       }
 
-      final response = await _apiService.post('/budget/transactions', {
-        'user_id': userId,
-        'period': _mapPeriodToApiFormat(period),
-        'force_refresh': forceRefresh,
-      });
+      // Check if we're online
+      final isOnline = await _connectivityService.checkConnectivity();
+      final apiPeriod = _mapPeriodToApiFormat(period);
 
-      // Handle both response formats: direct list or object with transactions key
-      List<dynamic> transactionsList;
-      if (response is List) {
-        // Server returned a direct list
-        transactionsList = response;
-      } else if (response is Map<String, dynamic>) {
-        // Server returned an object with a transactions key
-        if (!response.containsKey('success') || response['success'] != true) {
+      if (isOnline &&
+          (forceRefresh ||
+              !(await _isCachedDataSufficient(userId, apiPeriod)))) {
+        // Online and we need fresh data: Get from API
+        try {
+          final response = await _apiService.post('/budget/transactions', {
+            'user_id': userId,
+            'period': apiPeriod,
+            'force_refresh': forceRefresh,
+          });
+
+          // Handle both response formats: direct list or object with transactions key
+          List<dynamic> transactionsList;
+          if (response is List) {
+            // Server returned a direct list
+            transactionsList = response;
+          } else if (response is Map<String, dynamic>) {
+            // Server returned an object with a transactions key
+            if (!response.containsKey('success') ||
+                response['success'] != true) {
+              _cache.completeRequest(cacheKey);
+              return []; // Return empty list if response indicates failure
+            }
+
+            if (!response.containsKey('transactions')) {
+              _cache.completeRequest(cacheKey);
+              return []; // Return empty list if no transactions key
+            }
+
+            transactionsList = response['transactions'] as List<dynamic>;
+          } else {
+            // Unexpected response format
+            _cache.completeRequest(cacheKey);
+            return [];
+          }
+
+          // Convert the dynamic list to a list of Transaction objects
+          final transactions = _convertToTransactions(transactionsList);
+
+          // Cache the result in memory
+          _cache.set(cacheKey, transactions);
+
+          // Also store in local database for offline access
+          await _localDataSource.saveTransactions(transactions);
+
           _cache.completeRequest(cacheKey);
-          return []; // Return empty list if response indicates failure
-        }
-
-        if (!response.containsKey('transactions')) {
+          return transactions;
+        } catch (e) {
+          // If API request fails, fall back to local database
+          final transactions = await _localDataSource
+              .getTransactionsByUserIdAndPeriod(userId, apiPeriod);
+          _cache.set(cacheKey, transactions);
           _cache.completeRequest(cacheKey);
-          return []; // Return empty list if no transactions key
+          return transactions;
         }
-
-        transactionsList = response['transactions'] as List<dynamic>;
       } else {
-        // Unexpected response format
+        // Offline or we have sufficient data: Get from local database
+        final transactions = await _localDataSource
+            .getTransactionsByUserIdAndPeriod(userId, apiPeriod);
+        _cache.set(cacheKey, transactions);
         _cache.completeRequest(cacheKey);
-        return [];
+        return transactions;
       }
-
-      // Convert the dynamic list to a list of Transaction objects
-      final transactions = _convertToTransactions(transactionsList);
-
-      // Cache the result
-      _cache.set(cacheKey, transactions);
-      _cache.completeRequest(cacheKey);
-
-      return transactions;
     } catch (e) {
       final cacheKey = 'transactions_${period.toLowerCase()}';
       _cache.completeRequestWithError(cacheKey, e);
       return []; // Return empty list on error
     }
+  }
+
+  /// Check if we have sufficient local data (prevent unnecessary API calls)
+  Future<bool> _isCachedDataSufficient(String userId, String period) async {
+    // Get local data for this period
+    final localTransactions =
+        await _localDataSource.getTransactionsByUserIdAndPeriod(userId, period);
+
+    // If we have some data and not forcing refresh, consider it sufficient
+    return localTransactions.isNotEmpty;
   }
 
   /// Get the daily total spent
@@ -279,39 +372,58 @@ class TransactionQueryRepository {
         return 0.0;
       }
 
-      final response = await _apiService.post('/budget/daily-total', {
-        'user_id': userId,
-        'force_refresh': forceRefresh,
-      });
+      // Check if we're online
+      final isOnline = await _connectivityService.checkConnectivity();
 
-      // Handle both response formats
-      double result = 0.0;
-      if (response is Map<String, dynamic>) {
-        if (response.containsKey('total')) {
-          result = (response['total'] as num).toDouble();
-        } else if (response.containsKey('success') &&
-            response['success'] == false) {
-          result = 0.0;
+      if (isOnline && forceRefresh) {
+        // Online and forcing refresh: Get from API
+        try {
+          final response = await _apiService.post('/budget/daily-total', {
+            'user_id': userId,
+            'force_refresh': forceRefresh,
+          });
+
+          // Handle both response formats
+          double result = 0.0;
+          if (response is Map<String, dynamic>) {
+            if (response.containsKey('total')) {
+              result = (response['total'] as num).toDouble();
+            } else if (response.containsKey('success') &&
+                response['success'] == false) {
+              result = 0.0;
+            }
+          } else {
+            // If we got here, try to calculate the total from daily transactions
+            try {
+              final transactions = await getDailyTransactions();
+              if (transactions.isNotEmpty) {
+                double total = 0.0;
+                for (var tx in transactions) {
+                  total += tx.amount;
+                }
+                result = total;
+              }
+            } catch (e) {}
+          }
+
+          // Cache the result
+          _cache.set(cacheKey, result);
+          _cache.completeRequest(cacheKey);
+          return result;
+        } catch (e) {
+          // If API fails, calculate from local database
+          final dailyTotal = await _localDataSource.getTotalByPeriod('daily');
+          _cache.set(cacheKey, dailyTotal);
+          _cache.completeRequest(cacheKey);
+          return dailyTotal;
         }
       } else {
-        // If we got here, try to calculate the total from daily transactions
-        try {
-          final transactions = await getDailyTransactions();
-          if (transactions.isNotEmpty) {
-            double total = 0.0;
-            for (var tx in transactions) {
-              total += tx.amount;
-            }
-            result = total;
-          }
-        } catch (e) {}
+        // Offline or not forcing refresh: Calculate from local database
+        final dailyTotal = await _localDataSource.getTotalByPeriod('daily');
+        _cache.set(cacheKey, dailyTotal);
+        _cache.completeRequest(cacheKey);
+        return dailyTotal;
       }
-
-      // Cache the result
-      _cache.set(cacheKey, result);
-      _cache.completeRequest(cacheKey);
-
-      return result;
     } catch (e) {
       final cacheKey = 'daily_total';
       _cache.completeRequestWithError(cacheKey, e);
@@ -377,76 +489,79 @@ class TransactionQueryRepository {
       final completer = Completer<Map<String, List<Transaction>>>();
       _cache.registerRequest(cacheKey, completer);
 
-      // Prepare request payload
-      final payload = {
-        'user_id': userId,
-        'period': apiPeriod,
-        'force_refresh': forceRefresh,
-      };
+      // Check if we're online
+      final isOnline = await _connectivityService.checkConnectivity();
 
-      // Add date parameter if provided
-      if (date != null && date.isNotEmpty) {
-        payload['date'] = date;
-      }
+      List<Transaction> transactions;
 
-      final response = await _apiService.post('/budget/transactions', payload);
+      if (isOnline && forceRefresh) {
+        // Online and forcing refresh: Get from API
+        try {
+          // Prepare request payload
+          final payload = {
+            'user_id': userId,
+            'period': apiPeriod,
+            'force_refresh': forceRefresh,
+          };
 
-      // Handle both response formats: direct list or object with transactions key
-      List<dynamic> transactionsList;
-      if (response is List) {
-        // Server returned a direct list
-        transactionsList = response;
-      } else if (response is Map<String, dynamic>) {
-        // Server returned an object with a transactions key
-        if (response.containsKey('transactions')) {
-          transactionsList = response['transactions'];
-        } else {
-          _cache.completeRequest(cacheKey);
-          completer.complete({});
-          return {}; // Return empty map if no transactions key
+          // Add date parameter if provided
+          if (date != null && date.isNotEmpty) {
+            payload['date'] = date;
+          }
+
+          final response =
+              await _apiService.post('/budget/transactions', payload);
+
+          // Handle both response formats: direct list or object with transactions key
+          List<dynamic> transactionsList;
+          if (response is List) {
+            // Server returned a direct list
+            transactionsList = response;
+          } else if (response is Map<String, dynamic>) {
+            // Server returned an object with a transactions key
+            if (response.containsKey('transactions')) {
+              transactionsList = response['transactions'];
+            } else {
+              _cache.completeRequest(cacheKey);
+              completer.complete({});
+              return {}; // Return empty map if no transactions key
+            }
+          } else {
+            // Unexpected response format
+            _cache.completeRequest(cacheKey);
+            completer.complete({});
+            return {};
+          }
+
+          // Convert to Transaction objects
+          transactions = _convertToTransactions(transactionsList);
+
+          // Save to local database
+          await _localDataSource.saveTransactions(transactions);
+        } catch (e) {
+          // If API fails, get from local database
+          transactions = await _localDataSource
+              .getTransactionsByUserIdAndPeriod(userId, apiPeriod);
         }
       } else {
-        // Unexpected response format
-
-        _cache.completeRequest(cacheKey);
-        completer.complete({});
-        return {};
+        // Offline or not forcing refresh: Get from local database
+        transactions = await _localDataSource.getTransactionsByUserIdAndPeriod(
+            userId, apiPeriod);
       }
 
       // Group transactions by date
       final Map<String, List<Transaction>> transactionsByDate = {};
 
-      for (var tx in transactionsList) {
-        try {
-          final transaction = tx is Transaction ? tx : Transaction.fromJson(tx);
+      for (var transaction in transactions) {
+        // Format date as key
+        final dateKey = DateFormat('yyyy-MM-dd').format(transaction.timestamp);
 
-          // Format date as key
-          final dateKey =
-              DateFormat('yyyy-MM-dd').format(transaction.timestamp);
-
-          if (!transactionsByDate.containsKey(dateKey)) {
-            transactionsByDate[dateKey] = [];
-          }
-
-          transactionsByDate[dateKey]!.add(transaction);
-        } catch (e) {
-          // Continue processing other transactions
-          continue;
+        if (!transactionsByDate.containsKey(dateKey)) {
+          transactionsByDate[dateKey] = [];
         }
+
+        transactionsByDate[dateKey]!.add(transaction);
       }
-
-      // Log the total transactions by category for debugging
-      final Map<String, double> categoryTotals = {};
-      transactionsByDate.forEach((date, transactions) {
-        for (var tx in transactions) {
-          final categoryName =
-              tx.category.name; // Use the name property of the enum
-          categoryTotals[categoryName] =
-              (categoryTotals[categoryName] ?? 0.0) + tx.amount;
-        }
-      });
-
-      categoryTotals.forEach((category, total) {});
 
       // Cache the result
       _cache.set(cacheKey, transactionsByDate);
