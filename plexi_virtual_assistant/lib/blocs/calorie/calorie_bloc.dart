@@ -15,6 +15,8 @@ class CalorieBloc extends Bloc<CalorieEvent, CalorieState>
   final PreferencesRepository _userPreferencesRepository;
   Timer? _refreshTimer;
   DateTime? _lastMonthlyDataFetch;
+  bool _isLoadingDaily = false;
+  DateTime? _lastDailyLoad;
 
   CalorieBloc({
     required CalorieRepository repository,
@@ -55,6 +57,18 @@ class CalorieBloc extends Bloc<CalorieEvent, CalorieState>
     LoadDailyCalories event,
     Emitter<CalorieState> emit,
   ) async {
+    // Debounce daily loads - prevent multiple simultaneous requests
+    final now = DateTime.now();
+    if (_isLoadingDaily ||
+        (_lastDailyLoad != null &&
+            now.difference(_lastDailyLoad!).inMilliseconds < 500)) {
+      print("CalorieBloc: Skipping daily load - too soon after previous load");
+      return;
+    }
+
+    _isLoadingDaily = true;
+    _lastDailyLoad = now;
+
     try {
       // Fetch daily calories
       final dailyData =
@@ -126,6 +140,8 @@ class CalorieBloc extends Bloc<CalorieEvent, CalorieState>
     } catch (e) {
       emit(state.copyWith(
           status: CalorieStatus.error, errorMessage: e.toString()));
+    } finally {
+      _isLoadingDaily = false;
     }
   }
 
@@ -411,119 +427,6 @@ class CalorieBloc extends Bloc<CalorieEvent, CalorieState>
     return 0.0;
   }
 
-  // New method to fetch weekly calorie data
-  Future<void> fetchWeeklyCalories() async {
-    try {
-      // Emit loading state to show the loading indicator
-      emit(state.copyWith(status: CalorieStatus.loading));
-
-      // Fetch weekly calories from the repository with force refresh to ensure fresh data
-      final weeklyData =
-          await _repository.getWeeklyCalories(forceRefresh: true);
-
-      // Debug: Print the raw weekly data structure
-
-      weeklyData.forEach((key, value) {
-        if (key == 'entries') {
-        } else {}
-      });
-
-      // Check if the data contains entries
-      if (weeklyData['entries'] != null && weeklyData['entries'] is List) {
-        final List<dynamic> entries = weeklyData['entries'];
-
-        if (entries.isNotEmpty) {
-          // Debug: Print the first entry structure
-
-          final firstEntry = entries.first;
-          if (firstEntry is Map) {
-            firstEntry.forEach((key, value) {});
-          } else {}
-        }
-
-        // Convert the entries to CalorieEntry objects
-        final List<CalorieEntry> calorieEntries = entries.map((entry) {
-          DateTime timestamp;
-          try {
-            if (entry['timestamp'] != null) {
-              timestamp = DateTime.parse(entry['timestamp'].toString());
-            } else {
-              // If no timestamp, use current date with a random hour to distribute them
-              final now = DateTime.now();
-              timestamp =
-                  DateTime(now.year, now.month, now.day, now.hour, now.minute);
-            }
-          } catch (e) {
-            // If parsing fails, use current time as fallback
-            timestamp = DateTime.now();
-          }
-
-          return CalorieEntry(
-            id: entry['id']?.toString(),
-            foodItem: entry['food_item'] ?? 'Unknown food',
-            calories: _parseToInt(entry['calories']),
-            protein:
-                entry['protein'] != null ? _parseToInt(entry['protein']) : null,
-            carbs: entry['carbs'] != null ? _parseToInt(entry['carbs']) : null,
-            fat: entry['fat'] != null ? _parseToInt(entry['fat']) : null,
-            quantity: entry['quantity'] != null
-                ? _parseToDouble(entry['quantity'])
-                : 1.0,
-            unit: entry['unit'] ?? 'serving',
-            timestamp: timestamp,
-          );
-        }).toList();
-
-        // Debug: Display entries breakdown by day of week
-        final Map<int, List<CalorieEntry>> entriesByDay = {};
-        for (var i = 1; i <= 7; i++) {
-          entriesByDay[i] = [];
-        }
-
-        for (var entry in calorieEntries) {
-          final weekday = entry.timestamp.weekday;
-          entriesByDay[weekday]?.add(entry);
-        }
-
-        final List<String> weekdays = [
-          'Monday',
-          'Tuesday',
-          'Wednesday',
-          'Thursday',
-          'Friday',
-          'Saturday',
-          'Sunday'
-        ];
-        for (var i = 1; i <= 7; i++) {
-          final entries = entriesByDay[i] ?? [];
-          int totalCalories = 0;
-          for (var entry in entries) {
-            totalCalories += entry.calories;
-          }
-        }
-
-        // Emit the updated state with the weekly entries
-
-        emit(state.copyWith(
-          status: CalorieStatus.loaded,
-          entries: calorieEntries,
-        ));
-      } else {
-        // Emit an empty state if no entries are found
-        emit(state.copyWith(
-          status: CalorieStatus.loaded,
-          entries: [],
-        ));
-      }
-    } catch (e) {
-      // Emit an error state if fetching fails
-      emit(state.copyWith(
-        status: CalorieStatus.error,
-        errorMessage: e.toString(),
-      ));
-    }
-  }
-
   // Add this method to handle weekly data loading
   Future<void> _onLoadWeekly(
     LoadWeeklyCalories event,
@@ -591,18 +494,18 @@ class CalorieBloc extends Bloc<CalorieEvent, CalorieState>
     Emitter<CalorieState> emit,
   ) async {
     try {
-      // Debounce monthly data requests - only fetch if 
+      // Debounce monthly data requests - only fetch if
       // it's been at least 10 seconds since last request
       final now = DateTime.now();
-      if (_lastMonthlyDataFetch != null && 
+      if (_lastMonthlyDataFetch != null &&
           now.difference(_lastMonthlyDataFetch!).inSeconds < 10) {
         // Skip this request as it's too soon after the previous one
         return;
       }
-      
+
       // Update the last fetch timestamp
       _lastMonthlyDataFetch = now;
-      
+
       emit(state.copyWith(status: CalorieStatus.loading));
 
       final monthlyData =

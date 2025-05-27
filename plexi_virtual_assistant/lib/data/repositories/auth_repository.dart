@@ -89,6 +89,10 @@ class AuthRepository {
         final token = await userCredential.user!.getIdToken();
         await _secureStorage.write(key: 'auth_token', value: token);
         await registerUserWithBackend(userCredential.user!);
+        assert(() {
+          print("🔥 Firebase ID Token: $token");
+          return true;
+        }());
       } else {
         print("DEBUG: Firebase returned null user after sign-in");
       }

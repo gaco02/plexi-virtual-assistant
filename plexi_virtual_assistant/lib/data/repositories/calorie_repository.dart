@@ -1,16 +1,15 @@
 import 'dart:async';
 import '../models/calorie_entry.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'dart:math';
 import '../../services/api_service.dart';
 import 'package:synchronized/synchronized.dart';
+import '../local/database_helper.dart';
 
 class CalorieRepository {
-  // In-memory storage for calorie entries
+  // In-memory cache for calorie entries
   static List<CalorieEntry> _entries = [];
   static bool _initialized = false;
-  static const String _storageKey = 'calorie_entries';
 
   // Cache metadata
   static DateTime? _lastCacheUpdate;
@@ -18,6 +17,9 @@ class CalorieRepository {
 
   // API service for server communication
   final ApiService? apiService;
+
+  // Database helper
+  final DatabaseHelper _dbHelper = DatabaseHelper();
 
   bool get _isCacheValid =>
       _lastCacheUpdate != null &&
@@ -31,35 +33,29 @@ class CalorieRepository {
     _initializeEntries();
   }
 
-  // Initialize entries from SharedPreferences and server if available
+  // Initialize entries from SQLite and server if available
   Future<void> _initializeEntries() async {
     if (!_initialized) {
       try {
-        final prefs = await SharedPreferences.getInstance();
+        // Get current user ID from Firebase Auth if available
+        final userId = apiService?.getCurrentUserId();
 
-        // Try to load from SharedPreferences first
-        final entriesJson = prefs.getStringList(_storageKey);
-        bool loadedFromPrefs = false;
+        if (userId != null) {
+          // Try to load from SQLite database first
+          final dbEntries = await _dbHelper.getAllCalorieEntries(userId);
 
-        if (entriesJson != null && entriesJson.isNotEmpty) {
-          try {
-            _entries = entriesJson.map((json) {
-              return CalorieEntry.fromJson(jsonDecode(json));
-            }).toList();
-            loadedFromPrefs = true;
-          } catch (parseError) {
-            // Ignore parse errors
+          if (dbEntries.isNotEmpty) {
+            _entries = dbEntries;
+            _lastCacheUpdate = DateTime.now();
           }
-        } else {
-          // No entries found in SharedPreferences
-        }
 
-        // If we have an API service, try to fetch entries from server via direct API
-        if (apiService != null) {
-          try {
-            await _fetchDailyCaloriesFromServerVoid();
-          } catch (serverError) {
-            // Ignore server errors
+          // If we have an API service, try to fetch entries from server via direct API
+          if (apiService != null) {
+            try {
+              await _fetchDailyCaloriesFromServerVoid();
+            } catch (serverError) {
+              // Ignore server errors, continue with local data
+            }
           }
         }
 
@@ -157,8 +153,17 @@ class CalorieRepository {
           }
 
           if (newEntries.isNotEmpty) {
-            // Add new entries to the in-memory list
-            _entries.addAll(newEntries);
+            // Replace the in-memory list with new entries from server to avoid duplication
+            // First, preserve any local entries that might not be on the server yet
+            final localOnlyEntries = _entries.where((localEntry) {
+              // Keep entries that don't have a server ID (newly created, not yet synced)
+              return localEntry.id == null ||
+                  !newEntries
+                      .any((serverEntry) => serverEntry.id == localEntry.id);
+            }).toList();
+
+            // Combine server entries with local-only entries
+            _entries = [...newEntries, ...localOnlyEntries];
 
             // Save to local storage
             await _saveEntries();
@@ -376,23 +381,23 @@ class CalorieRepository {
     return latestDate.isBefore(today);
   }
 
-  // Save entries to SharedPreferences
+  // Save entries to SQLite database
   Future<void> _saveEntries() async {
     try {
       if (_entries.isEmpty) {
         return;
       }
 
-      final prefs = await SharedPreferences.getInstance();
+      // Get current user ID
+      final userId = apiService?.getCurrentUserId();
+      if (userId == null) {
+        return;
+      }
 
-      // Convert entries to JSON
-      final entriesJson = _entries.map((entry) {
-        final json = jsonEncode(entry.toJson());
-        return json;
-      }).toList();
+      // Save to SQLite database
+      await _dbHelper.saveCalorieEntries(_entries, userId);
 
-      // Save to SharedPreferences
-      final success = await prefs.setStringList(_storageKey, entriesJson);
+      _lastCacheUpdate = DateTime.now(); // Update cache timestamp
     } catch (e) {}
   }
 
@@ -403,192 +408,392 @@ class CalorieRepository {
       // Make sure entries are initialized
       await _initializeEntries();
 
+      // Get current user ID
+      final userId = apiService?.getCurrentUserId();
+
+      if (userId == null) {
+        return List.from(_entries);
+      }
+
       // If cache is valid and not forcing refresh, return cached entries
       if (_entries.isNotEmpty && _isCacheValid && !forceRefresh) {
         return List.from(_entries);
       }
 
-      // If we have an API service, try to fetch from server first
-      if (apiService != null) {
-        try {
-          // Get current user ID
-          final userId = apiService?.getCurrentUserId();
-          if (userId == null) {
-            return List.from(_entries);
-          }
-
-          // Fetch entries from server using monthly period instead of 'all'
-          final response = await apiService!.post('/calories/entries', {
-            'user_id': userId,
-            'period': 'monthly',
-            'force_refresh':
-                forceRefresh, // Pass through the force refresh parameter
-          });
-
-          if (response != null) {
-            // Handle the response based on its structure
-            if (response is Map && response['entries'] is List) {
-              final List<dynamic> serverEntries = response['entries'];
-
-              // Process entries and add to in-memory list
-              await _processServerEntries(serverEntries);
-
-              return List.from(_entries);
-            } else if (response is List) {
-              // Process entries and add to in-memory list
-              await _processServerEntries(response);
-
-              return List.from(_entries);
-            } else {}
-          }
-        } catch (e) {
-          // Continue with local entries
+      return await _cacheLock.synchronized(() async {
+        // Double-check cache validity after lock acquisition to avoid duplicate work
+        if (_entries.isNotEmpty && _isCacheValid && !forceRefresh) {
+          return List.from(_entries);
         }
-      }
 
-      // Return the current entries if server fetch fails or is not available
+        // If we have an API service, try to fetch from server first
+        if (apiService != null && forceRefresh) {
+          try {
+            await _fetchDailyCaloriesFromServerVoid();
+          } catch (e) {
+            // If server fetch fails, fall back to local database
+            final dbEntries = await _dbHelper.getAllCalorieEntries(userId);
+            if (dbEntries.isNotEmpty) {
+              _entries = dbEntries;
+              _lastCacheUpdate = DateTime.now();
+            }
+          }
+        } else {
+          // Just get from local database
+          final dbEntries = await _dbHelper.getAllCalorieEntries(userId);
+          if (dbEntries.isNotEmpty) {
+            _entries = dbEntries;
+            _lastCacheUpdate = DateTime.now();
+          }
+        }
 
-      return List.from(_entries);
+        return List.from(_entries);
+      });
     } catch (e) {
-      // Return empty list if anything fails
-      return [];
+      return List.from(_entries); // Return what we have in case of error
     }
   }
 
-  /// Process server entries and add them to in-memory list
-  Future<void> _processServerEntries(List<dynamic> serverEntries) async {
-    return _cacheLock.synchronized(() async {
-      final List<CalorieEntry> newEntries = [];
+  /// Fetches calorie entries for a specific date
+  Future<List<CalorieEntry>> getCalorieEntriesForDate(DateTime date,
+      {bool forceRefresh = false}) async {
+    try {
+      // Make sure entries are initialized
+      await _initializeEntries();
 
-      for (var entry in serverEntries) {
-        try {
-          // Parse timestamp
-          DateTime timestamp;
-          if (entry['timestamp'] != null) {
-            timestamp = DateTime.parse(entry['timestamp']);
-          } else {
-            final now = DateTime.now();
-            timestamp =
-                DateTime(now.year, now.month, now.day, now.hour, now.minute);
+      // Get current user ID
+      final userId = apiService?.getCurrentUserId();
+
+      if (userId == null) {
+        return _filterEntriesByDate(_entries, date);
+      }
+
+      // If cache is valid and not forcing refresh, return filtered cached entries
+      if (_entries.isNotEmpty && _isCacheValid && !forceRefresh) {
+        return _filterEntriesByDate(_entries, date);
+      }
+
+      return await _cacheLock.synchronized(() async {
+        // Double-check cache validity after lock acquisition
+        if (_entries.isNotEmpty && _isCacheValid && !forceRefresh) {
+          return _filterEntriesByDate(_entries, date);
+        }
+
+        // Try to get directly from database for the specific date
+        final dbEntries =
+            await _dbHelper.getCalorieEntriesForDate(userId, date);
+
+        // If we have entries for this date in the database and not forcing refresh, return them
+        if (dbEntries.isNotEmpty && !forceRefresh) {
+          return dbEntries;
+        }
+
+        // If we have an API service and either we're forcing refresh or we don't have local data
+        if (apiService != null && (forceRefresh || dbEntries.isEmpty)) {
+          try {
+            await _fetchDailyCaloriesFromServerVoid();
+
+            // After server fetch, get updated entries from database
+            final freshDbEntries =
+                await _dbHelper.getCalorieEntriesForDate(userId, date);
+            return freshDbEntries;
+          } catch (e) {
+            // If server fetch fails, return what we got from the database
+            return dbEntries;
           }
+        }
 
-          // Parse numeric values safely using existing helper methods
-          int calories = _parseToInt(entry['calories']);
-          int? protein =
-              entry['protein'] != null ? _parseToInt(entry['protein']) : null;
-          int? carbs =
-              entry['carbs'] != null ? _parseToInt(entry['carbs']) : null;
-          int? fat = entry['fat'] != null ? _parseToInt(entry['fat']) : null;
-          double quantity =
-              _parseToDouble(entry['quantity'], defaultValue: 1.0);
-
-          final String foodItem = entry['food_item'] ?? 'Unknown food';
-
-          // Create a new entry
-          final calorieEntry = CalorieEntry(
-            id: entry['id']?.toString(),
-            foodItem: foodItem,
-            calories: calories,
-            protein: protein,
-            carbs: carbs,
-            fat: fat,
-            quantity: quantity,
-            unit: entry['unit'] ?? 'serving',
-            timestamp: timestamp,
-          );
-
-          newEntries.add(calorieEntry);
-        } catch (e) {}
-      }
-
-      if (newEntries.isNotEmpty) {
-        // Replace existing entries with new ones
-        _entries = newEntries;
-        _lastCacheUpdate = DateTime.now();
-
-        // Save to shared preferences
-        await _saveEntries();
-      }
-    });
+        // Return database entries if we couldn't refresh from server
+        return dbEntries;
+      });
+    } catch (e) {
+      // Return filtered in-memory entries as a fallback
+      return _filterEntriesByDate(_entries, date);
+    }
   }
 
-  // Helper method to parse int values safely
-  int _parseToInt(dynamic value, {int defaultValue = 0}) {
-    if (value == null) return defaultValue;
-    if (value is int) return value;
-    if (value is double) return value.round();
-    if (value is String) return int.tryParse(value) ?? defaultValue;
-    return defaultValue;
+  /// Fetches daily calories and returns a summary
+  Future<Map<String, dynamic>> getDailyCalories(
+      {bool forceRefresh = false}) async {
+    try {
+      // Make sure entries are initialized
+      await _initializeEntries();
+
+      // If we need to refresh or it's a new day, fetch from server
+      if (forceRefresh || _isNewDay() || !_isCacheValid) {
+        if (apiService != null) {
+          await _fetchDailyCaloriesFromServerVoid();
+        }
+      }
+
+      // Get today's date
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+
+      // Filter entries for today
+      final todayEntries = _entries.where((entry) {
+        final entryDate = DateTime(
+          entry.timestamp.year,
+          entry.timestamp.month,
+          entry.timestamp.day,
+        );
+        return entryDate.isAtSameMomentAs(today);
+      }).toList();
+
+      // Calculate totals
+      int totalCalories = 0;
+      double totalCarbs = 0;
+      double totalProtein = 0;
+      double totalFat = 0;
+
+      // Group entries by food item
+      final Map<String, List<CalorieEntry>> entriesByFood = {};
+      for (var entry in todayEntries) {
+        if (!entriesByFood.containsKey(entry.foodItem)) {
+          entriesByFood[entry.foodItem] = [];
+        }
+        entriesByFood[entry.foodItem]!.add(entry);
+      }
+
+      // Create breakdown items
+      final List<Map<String, dynamic>> breakdown = [];
+      entriesByFood.forEach((foodItem, entries) {
+        int totalFoodCalories = 0;
+        for (var entry in entries) {
+          totalCalories += entry.calories;
+          totalCarbs += entry.carbs?.toDouble() ?? 0;
+          totalProtein += entry.protein?.toDouble() ?? 0;
+          totalFat += entry.fat?.toDouble() ?? 0;
+          totalFoodCalories += entry.calories;
+        }
+
+        breakdown.add({
+          'item': foodItem,
+          'calories': totalFoodCalories,
+          'count': entries.length,
+        });
+      });
+
+      // Sort by calories (highest first)
+      breakdown.sort(
+          (a, b) => (b['calories'] as int).compareTo(a['calories'] as int));
+
+      return {
+        'totalCalories': totalCalories,
+        'totalCarbs': totalCarbs,
+        'totalProtein': totalProtein,
+        'totalFat': totalFat,
+        'breakdown': breakdown,
+        'entries': todayEntries.map((e) => e.toJson()).toList(),
+      };
+    } catch (e) {
+      // Return empty data in case of error
+      return {
+        'totalCalories': 0,
+        'totalCarbs': 0.0,
+        'totalProtein': 0.0,
+        'totalFat': 0.0,
+        'breakdown': [],
+        'entries': [],
+      };
+    }
   }
 
-  // Helper method to parse double values safely
-  double _parseToDouble(dynamic value, {double defaultValue = 0.0}) {
-    if (value == null) return defaultValue;
-    if (value is double) return value;
-    if (value is int) return value.toDouble();
-    if (value is String) return double.tryParse(value) ?? defaultValue;
-    return defaultValue;
+  /// Fetches weekly calories and returns a summary
+  Future<Map<String, dynamic>> getWeeklyCalories(
+      {bool forceRefresh = false}) async {
+    try {
+      // Make sure entries are initialized
+      await _initializeEntries();
+
+      // If force refresh, try to get latest data from server
+      if (forceRefresh && apiService != null) {
+        try {
+          await _fetchDailyCaloriesFromServerVoid();
+        } catch (e) {
+          // Ignore server errors, use what we have
+        }
+      }
+
+      // Get the start of the current week (Sunday)
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+
+      // Find the previous Sunday (or today if it's Sunday)
+      final startOfWeek = today.subtract(Duration(days: today.weekday % 7));
+
+      // Filter entries for the current week
+      final weekEntries = _entries.where((entry) {
+        final entryDate = DateTime(
+          entry.timestamp.year,
+          entry.timestamp.month,
+          entry.timestamp.day,
+        );
+        return !entryDate.isBefore(startOfWeek) && !entryDate.isAfter(today);
+      }).toList();
+
+      // Calculate totals
+      int totalCalories = 0;
+      double totalCarbs = 0;
+      double totalProtein = 0;
+      double totalFat = 0;
+
+      for (var entry in weekEntries) {
+        totalCalories += entry.calories;
+        totalCarbs += entry.carbs?.toDouble() ?? 0;
+        totalProtein += entry.protein?.toDouble() ?? 0;
+        totalFat += entry.fat?.toDouble() ?? 0;
+      }
+
+      return {
+        'total_calories': totalCalories,
+        'total_carbs': totalCarbs,
+        'total_protein': totalProtein,
+        'total_fat': totalFat,
+        'entries': weekEntries.map((e) => e.toJson()).toList(),
+      };
+    } catch (e) {
+      // Return empty data in case of error
+      return {
+        'total_calories': 0,
+        'total_carbs': 0.0,
+        'total_protein': 0.0,
+        'total_fat': 0.0,
+        'entries': [],
+      };
+    }
+  }
+
+  /// Fetches monthly calories and returns a summary
+  Future<Map<String, dynamic>> getMonthlyCalories(
+      {bool forceRefresh = false}) async {
+    try {
+      // Make sure entries are initialized
+      await _initializeEntries();
+
+      // If force refresh, try to get latest data from server
+      if (forceRefresh && apiService != null) {
+        try {
+          await _fetchDailyCaloriesFromServerVoid();
+        } catch (e) {
+          // Ignore server errors, use what we have
+        }
+      }
+
+      // Get the start of the current month
+      final now = DateTime.now();
+      final startOfMonth = DateTime(now.year, now.month, 1);
+      final today = DateTime(now.year, now.month, now.day);
+
+      // Filter entries for the current month
+      final monthEntries = _entries.where((entry) {
+        final entryDate = DateTime(
+          entry.timestamp.year,
+          entry.timestamp.month,
+          entry.timestamp.day,
+        );
+        return !entryDate.isBefore(startOfMonth) && !entryDate.isAfter(today);
+      }).toList();
+
+      // Calculate totals
+      int totalCalories = 0;
+      double totalCarbs = 0;
+      double totalProtein = 0;
+      double totalFat = 0;
+
+      for (var entry in monthEntries) {
+        totalCalories += entry.calories;
+        totalCarbs += entry.carbs?.toDouble() ?? 0;
+        totalProtein += entry.protein?.toDouble() ?? 0;
+        totalFat += entry.fat?.toDouble() ?? 0;
+      }
+
+      return {
+        'total_calories': totalCalories,
+        'total_carbs': totalCarbs,
+        'total_protein': totalProtein,
+        'total_fat': totalFat,
+        'entries': monthEntries.map((e) => e.toJson()).toList(),
+      };
+    } catch (e) {
+      // Return empty data in case of error
+      return {
+        'total_calories': 0,
+        'total_carbs': 0.0,
+        'total_protein': 0.0,
+        'total_fat': 0.0,
+        'entries': [],
+      };
+    }
   }
 
   /// Adds a new calorie entry
   Future<bool> addCalorieEntry(CalorieEntry entry) async {
-    // Ensure entries are initialized
-    await _initializeEntries();
-
     try {
-      // First try to add to the server if API service is available
-      if (apiService != null) {
-        try {
-          // Format the timestamp in a more compatible format: YYYY-MM-DD HH:MM:SS
-          final formattedTimestamp =
-              "${entry.timestamp.year}-${entry.timestamp.month.toString().padLeft(2, '0')}-${entry.timestamp.day.toString().padLeft(2, '0')} "
-              "${entry.timestamp.hour.toString().padLeft(2, '0')}:${entry.timestamp.minute.toString().padLeft(2, '0')}:${entry.timestamp.second.toString().padLeft(2, '0')}";
+      // Make sure entries are initialized
+      await _initializeEntries();
 
-          // Use the direct calories endpoint to add the entry
-          // Convert numeric values to strings to ensure proper handling on the server
-          final response = await apiService!.post('/calories/entries/add', {
-            'food_item': entry.foodItem,
-            'calories': entry.calories.toString(), // Convert to string
-            'protein': entry.protein != null ? entry.protein.toString() : null,
-            'carbs': entry.carbs != null ? entry.carbs.toString() : null,
-            'fat': entry.fat != null ? entry.fat.toString() : null,
-            'quantity': entry.quantity.toString(), // Convert to string
-            'unit': entry.unit,
-            'timestamp': formattedTimestamp, // Use the formatted timestamp
-          });
+      // Get current user ID
+      final userId = apiService?.getCurrentUserId();
 
-          // Add to local storage regardless of server response
-          // This ensures we have the entry even if server sync failed
-          _entries.add(entry);
-          await _saveEntries();
-
-          // Try to refresh from server but don't fail if it doesn't work
-          try {
-            await _fetchDailyCaloriesFromServerVoid();
-          } catch (e) {}
-
-          // Update daily summary
-          _updateDailySummary();
-
-          return true;
-        } catch (e) {
-          // Continue with local storage even if server fails
-          _entries.add(entry);
-          await _saveEntries();
-
-          // Update daily summary
-          _updateDailySummary();
-
-          return true;
-        }
+      if (userId == null) {
+        return false;
       }
 
-      // Add to local storage
+      // Add the entry to the in-memory cache
       _entries.add(entry);
-      await _saveEntries();
 
-      // Update daily summary
-      _updateDailySummary();
+      // Save to SQLite database
+      await _dbHelper.saveCalorieEntry(entry, userId);
+
+      // Update the last cache update time
+      _lastCacheUpdate = DateTime.now();
+
+      // If we have an API service, try to send to server
+      if (apiService != null) {
+        try {
+          final response = await apiService!.post('/calories/add', {
+            'user_id': userId,
+            'food_item': entry.foodItem,
+            'calories': entry.calories,
+            'protein': entry.protein,
+            'carbs': entry.carbs,
+            'fat': entry.fat,
+            'quantity': entry.quantity,
+            'unit': entry.unit,
+            'timestamp': entry.timestamp.toIso8601String(),
+          });
+
+          // If the server responds with an ID, update the entry
+          if (response != null &&
+              response['success'] == true &&
+              response['id'] != null) {
+            // Create a new entry with the server ID instead of modifying the final field
+            final updatedEntry = CalorieEntry(
+              id: response['id'].toString(),
+              foodItem: entry.foodItem,
+              calories: entry.calories,
+              protein: entry.protein,
+              carbs: entry.carbs,
+              fat: entry.fat,
+              quantity: entry.quantity,
+              unit: entry.unit,
+              timestamp: entry.timestamp,
+            );
+
+            // Update the entry in the database and in the cache
+            await _dbHelper.updateCalorieEntry(updatedEntry, userId);
+
+            // Update in-memory cache
+            final entryIndex = _entries.indexWhere((e) => e.id == entry.id);
+            if (entryIndex >= 0) {
+              _entries[entryIndex] = updatedEntry;
+            }
+          }
+        } catch (e) {
+          // Ignore server errors, entry is already saved locally
+        }
+      }
 
       return true;
     } catch (e) {
@@ -596,1020 +801,177 @@ class CalorieRepository {
     }
   }
 
-  /// Adds multiple calorie entries
-  Future<bool> addCalorieEntries(List<CalorieEntry> entries) async {
-    // Ensure entries are initialized
-    await _initializeEntries();
-    _entries.addAll(entries);
-    await _saveEntries();
-    return true;
-  }
-
-  /// Clears all calorie entries
-  Future<bool> clearCalorieEntries() async {
-    // Ensure entries are initialized
-    await _initializeEntries();
-    _entries.clear();
-    await _saveEntries();
-    return true;
-  }
-
-  /// Gets entries for a specific date
-  Future<List<CalorieEntry>> getEntriesForDate(DateTime date) async {
-    final allEntries = await getCalorieEntries();
-    final dateEntries = allEntries.where((entry) {
-      return entry.timestamp.year == date.year &&
-          entry.timestamp.month == date.month &&
-          entry.timestamp.day == date.day;
-    }).toList();
-
-    // If looking for March 28 specifically, print more details
-    if (date.month == 3 && date.day == 28) {
-      // Check for any entries in March
-      final marchEntries =
-          allEntries.where((entry) => entry.timestamp.month == 3).toList();
-
-      if (marchEntries.isNotEmpty) {
-        // Group by day
-        final Map<int, int> entriesByDay = {};
-        for (var entry in marchEntries) {
-          final day = entry.timestamp.day;
-          entriesByDay[day] = (entriesByDay[day] ?? 0) + 1;
-        }
-      }
-    }
-    return dateEntries;
-  }
-
-  /// Gets entries for a date range
-  Future<List<CalorieEntry>> getEntriesForDateRange(
-      DateTime startDate, DateTime endDate) async {
-    final allEntries = await getCalorieEntries();
-    return allEntries.where((entry) {
-      return entry.timestamp
-              .isAfter(startDate.subtract(const Duration(days: 1))) &&
-          entry.timestamp.isBefore(endDate.add(const Duration(days: 1)));
-    }).toList();
-  }
-
-  /// Gets daily calorie summary for today without caching.
-  Future<Map<String, dynamic>> getDailyCalories(
-      {bool forceRefresh = false}) async {
+  /// Updates an existing calorie entry
+  Future<bool> updateCalorieEntry(
+    String? id,
+    String foodItem,
+    int calories, {
+    int? protein,
+    int? carbs,
+    int? fat,
+    double? quantity,
+    String? unit,
+  }) async {
     try {
-      final result = await _getDailyCaloriesImpl(forceRefresh: forceRefresh);
-      return result;
+      // Make sure entries are initialized
+      await _initializeEntries();
+
+      // Get current user ID
+      final userId = apiService?.getCurrentUserId();
+
+      if (userId == null || id == null) {
+        return false;
+      }
+
+      // Find the entry in the in-memory cache
+      final index = _entries.indexWhere((e) => e.id == id);
+      if (index < 0) {
+        return false;
+      }
+
+      // Update the entry
+      final updatedEntry = CalorieEntry(
+        id: id,
+        foodItem: foodItem,
+        calories: calories,
+        protein: protein,
+        carbs: carbs,
+        fat: fat,
+        quantity: quantity ?? _entries[index].quantity,
+        unit: unit ?? _entries[index].unit,
+        timestamp: _entries[index].timestamp,
+      );
+
+      // Update in-memory cache
+      _entries[index] = updatedEntry;
+
+      // Save to SQLite database
+      await _dbHelper.updateCalorieEntry(updatedEntry, userId);
+
+      // Update the last cache update time
+      _lastCacheUpdate = DateTime.now();
+
+      // If we have an API service, try to send to server
+      if (apiService != null) {
+        try {
+          await apiService!.post('/calories/update', {
+            'user_id': userId,
+            'entry_id': id,
+            'food_item': foodItem,
+            'calories': calories,
+            'protein': protein,
+            'carbs': carbs,
+            'fat': fat,
+            'quantity': quantity,
+            'unit': unit,
+          });
+        } catch (e) {
+          // Ignore server errors, entry is already updated locally
+        }
+      }
+
+      return true;
     } catch (e) {
-      return {
-        'totalCalories': 0,
-        'totalCarbs': 0.0,
-        'totalProtein': 0.0,
-        'totalFat': 0.0,
-        'breakdown': <Map<String, dynamic>>[],
-      };
+      return false;
     }
   }
 
-  // Implementation of daily calories fetching logic
-  Future<Map<String, dynamic>> _getDailyCaloriesImpl(
-      {bool forceRefresh = false}) async {
-    // Ensure entries are initialized
-    await _initializeEntries();
+  /// Deletes a calorie entry
+  Future<bool> deleteCalorieEntry(String? id) async {
+    try {
+      // Make sure entries are initialized
+      await _initializeEntries();
 
-    // Try to get data from server first if API service is available
-    if (apiService != null) {
-      try {
-        // First try to get the summary from the server
-        final summaryResponse =
-            await _fetchDailyCaloriesFromServer(forceRefresh: forceRefresh);
-        if (summaryResponse != null) {
-          // Handle the case where total_calories is directly in the response (not in calorie_info)
-          if (summaryResponse['total_calories'] != null ||
-              summaryResponse['totalCalories'] != null) {
-            final int totalCalories = _parseToInt(
-                summaryResponse['totalCalories'] ??
-                    summaryResponse['total_calories'] ??
-                    0);
+      // Get current user ID
+      final userId = apiService?.getCurrentUserId();
 
-            final double totalCarbs = _parseToDouble(
-                summaryResponse['totalCarbs'] ??
-                    summaryResponse['total_carbs'] ??
-                    0);
-
-            final double totalProtein = _parseToDouble(
-                summaryResponse['totalProtein'] ??
-                    summaryResponse['total_protein'] ??
-                    0);
-
-            final double totalFat = _parseToDouble(
-                summaryResponse['totalFat'] ??
-                    summaryResponse['total_fat'] ??
-                    0);
-
-            // Get breakdown items from the server response
-            List<dynamic> serverItems =
-                summaryResponse['items'] ?? summaryResponse['breakdown'] ?? [];
-
-            // Process breakdown items
-            final List<Map<String, dynamic>> breakdown =
-                serverItems is List ? _processBreakdownList(serverItems) : [];
-
-            final result = {
-              'totalCalories': totalCalories,
-              'totalCarbs': totalCarbs,
-              'totalProtein': totalProtein,
-              'totalFat': totalFat,
-              'breakdown': breakdown,
-            };
-
-            return result;
-          }
-
-          // Check if we have calorie_info in the response
-          if (summaryResponse['calorie_info'] != null) {
-            final calorieInfo = summaryResponse['calorie_info'];
-
-            // Parse total calories
-            final int totalCalories = _parseToInt(
-                calorieInfo['totalCalories'] ??
-                    calorieInfo['total_calories'] ??
-                    0);
-
-            // Always process the data from the server, even if totalCalories is 0
-            {
-              // Parse macros - handle both camelCase and snake_case keys
-              final double totalCarbs = _parseToDouble(
-                  calorieInfo['totalCarbs'] ?? calorieInfo['total_carbs'] ?? 0);
-              final double totalProtein = _parseToDouble(
-                  calorieInfo['totalProtein'] ??
-                      calorieInfo['total_protein'] ??
-                      0);
-              final double totalFat = _parseToDouble(
-                  calorieInfo['totalFat'] ?? calorieInfo['total_fat'] ?? 0);
-
-              // Get breakdown from items - handle both 'items' and 'breakdown' keys
-              final List<Map<String, dynamic>> breakdown =
-                  calorieInfo['breakdown'] != null &&
-                          calorieInfo['breakdown'] is List
-                      ? _processBreakdownList(calorieInfo['breakdown'])
-                      : _getBreakdownFromItems(calorieInfo['items'] ?? {});
-
-              final result = {
-                'totalCalories': totalCalories,
-                'totalCarbs': totalCarbs,
-                'totalProtein': totalProtein,
-                'totalFat': totalFat,
-                'breakdown': breakdown,
-              };
-              return result;
-            }
-          }
-        }
-      } catch (e) {
-        // Continue with local data if server fails
+      if (userId == null || id == null) {
+        return false;
       }
+
+      // Find the entry in the in-memory cache
+      final index = _entries.indexWhere((e) => e.id == id);
+      if (index < 0) {
+        return false;
+      }
+
+      // Remove from in-memory cache
+      _entries.removeAt(index);
+
+      // Remove from SQLite database
+      await _dbHelper.deleteCalorieEntry(id);
+
+      // Update the last cache update time
+      _lastCacheUpdate = DateTime.now();
+
+      // If we have an API service, try to send delete request to server
+      if (apiService != null) {
+        try {
+          await apiService!.post('/calories/delete', {
+            'user_id': userId,
+            'entry_id': id,
+          });
+        } catch (e) {
+          // Ignore server errors, entry is already deleted locally
+        }
+      }
+
+      return true;
+    } catch (e) {
+      return false;
     }
+  }
 
-    // Fall back to local calculation if server fails or is not available
-    final entries = await getCalorieEntries(forceRefresh: forceRefresh);
+  /// Clears the in-memory cache and forces a fresh reload from the database
+  void clearCache() {
+    _entries.clear();
+    _lastCacheUpdate = null;
+    _initialized = false;
+  }
 
-    // Get today's date at midnight for comparison
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-
-    // Filter entries for today only
-    final todayEntries = entries.where((entry) {
+  // Helper method to filter entries by date
+  List<CalorieEntry> _filterEntriesByDate(
+      List<CalorieEntry> entries, DateTime date) {
+    final targetDate = DateTime(date.year, date.month, date.day);
+    return entries.where((entry) {
       final entryDate = DateTime(
         entry.timestamp.year,
         entry.timestamp.month,
         entry.timestamp.day,
       );
-      final isToday = entryDate.isAtSameMomentAs(today);
-      return isToday;
+      return entryDate.isAtSameMomentAs(targetDate);
     }).toList();
-
-    if (todayEntries.isNotEmpty) {
-      // Calculate totals
-      int totalCalories = 0;
-      double totalCarbs = 0;
-      double totalProtein = 0;
-      double totalFat = 0;
-
-      // Use a map to track food items for the breakdown
-      // This is more memory efficient than creating a lot of objects
-      final Map<String, Map<String, dynamic>> foodBreakdown = {};
-
-      for (final entry in todayEntries) {
-        totalCalories += entry.calories;
-        totalCarbs += entry.carbs?.toDouble() ?? 0;
-        totalProtein += entry.protein?.toDouble() ?? 0;
-        totalFat += entry.fat?.toDouble() ?? 0;
-
-        // Update the breakdown
-        final foodItem = entry.foodItem;
-        if (!foodBreakdown.containsKey(foodItem)) {
-          foodBreakdown[foodItem] = {
-            'calories': 0,
-            'count': 0,
-          };
-        }
-        foodBreakdown[foodItem]!['calories'] += entry.calories;
-        foodBreakdown[foodItem]!['count'] += 1;
-      }
-
-      // Convert the breakdown to a list of the top items by calories
-      final breakdownList = foodBreakdown.entries
-          .map((e) => {
-                'item': e.key,
-                'calories': e.value['calories'],
-                'count': e.value['count'],
-              })
-          .toList();
-
-      // Sort by calories (highest first)
-      breakdownList.sort(
-          (a, b) => (b['calories'] as int).compareTo(a['calories'] as int));
-
-      final result = {
-        'totalCalories': totalCalories,
-        'totalCarbs': totalCarbs,
-        'totalProtein': totalProtein,
-        'totalFat': totalFat,
-        'breakdown': breakdownList,
-      };
-
-      return result;
-    } else {
-      return {
-        'totalCalories': 0,
-        'totalCarbs': 0.0,
-        'totalProtein': 0.0,
-        'totalFat': 0.0,
-        'breakdown': [],
-      };
-    }
   }
 
-  /// Force refresh from server
-  Future<bool> refreshFromServer() async {
-    if (apiService == null) return false;
+  // Helper method to parse integers
+  int _parseToInt(dynamic value) {
+    if (value == null) return 0;
 
-    try {
-      // Get current user ID from Firebase Auth
-      final userId = apiService!.getCurrentUserId();
-      if (userId == null) {
-        return false;
-      }
+    if (value is int) return value;
+    if (value is double) return value.round();
+    if (value is String) {
+      final parsed = int.tryParse(value);
+      if (parsed != null) return parsed;
 
-      // First try to get entries
-      final entriesResponse = await apiService!.post('/calories/entries', {
-        'user_id': userId,
-        'period': 'daily',
-      });
-
-      List<dynamic> serverEntries = [];
-      bool hasValidEntries = false;
-
-      if (entriesResponse != null && entriesResponse['success'] == true) {
-        serverEntries = entriesResponse['entries'] ?? [];
-        if (serverEntries.isNotEmpty) {
-          hasValidEntries = true;
-        }
-      }
-
-      // Now try to get summary
-      final summaryResponse = await apiService!.post('/calories/summary', {
-        'user_id': userId,
-        'period': 'daily',
-        'message':
-            'show me my daily calories', // Help the server determine the right query scope
-      });
-
-      bool hasSummaryData = false;
-      int summaryTotalCalories = 0;
-
-      if (summaryResponse != null) {
-        if (summaryResponse['success'] == true &&
-            summaryResponse['summary'] != null) {
-          final summary = summaryResponse['summary'];
-          summaryTotalCalories = _parseToInt(summary['total_calories']);
-          hasSummaryData = summaryTotalCalories > 0;
-        } else if (summaryResponse['calorie_info'] != null) {
-          final calorieInfo = summaryResponse['calorie_info'];
-          summaryTotalCalories = _parseToInt(calorieInfo['total_calories']);
-          hasSummaryData = summaryTotalCalories > 0;
-        }
-      }
-
-      // If we have entries but summary shows zero calories, calculate totals from entries
-      if (hasValidEntries && !hasSummaryData && serverEntries.isNotEmpty) {
-        // Calculate totals from entries
-        int totalCalories = 0;
-        double totalCarbs = 0;
-        double totalProtein = 0;
-        double totalFat = 0;
-
-        // Use a map to track food items for the breakdown
-        final Map<String, Map<String, dynamic>> foodBreakdown = {};
-
-        for (final entry in serverEntries) {
-          // Parse calories
-          int calories = 0;
-          if (entry['calories'] != null) {
-            calories = _parseToInt(entry['calories']);
-          }
-
-          // Add to total
-          totalCalories += calories;
-
-          // Parse and add other nutrients
-          if (entry['carbs'] != null) {
-            totalCarbs += _parseToDouble(entry['carbs']);
-          }
-          if (entry['protein'] != null) {
-            totalProtein += _parseToDouble(entry['protein']);
-          }
-          if (entry['fat'] != null) {
-            totalFat += _parseToDouble(entry['fat']);
-          }
-
-          // Add to breakdown if food name is available
-          final foodItem =
-              entry['food_item'] ?? entry['food_name'] ?? 'Unknown food';
-          if (!foodBreakdown.containsKey(foodItem)) {
-            foodBreakdown[foodItem] = {
-              'calories': 0,
-              'count': 0,
-            };
-          }
-          foodBreakdown[foodItem]!['calories'] += calories;
-          foodBreakdown[foodItem]!['count'] += 1;
-        }
-
-        // Convert breakdown to list and sort by calories
-        final List<Map<String, dynamic>> breakdownList = foodBreakdown.entries
-            .map((entry) => {
-                  'food_name': entry.key,
-                  'calories': entry.value['calories'],
-                  'count': entry.value['count'],
-                })
-            .toList();
-        breakdownList.sort((a, b) => b['calories'].compareTo(a['calories']));
-
-        // Update the daily summary with calculated values
-        _updateDailySummary();
-
-        // Update in-memory entries
-        await _fetchDailyCaloriesFromServerVoid();
-        return true;
-      }
-
-      // If we have valid summary data, use it
-      if (hasSummaryData) {
-        // Update in-memory entries
-        await _fetchDailyCaloriesFromServerVoid();
-        return true;
-      }
-
-      // If we have valid entries but no summary, still consider it a success
-      if (hasValidEntries) {
-        // Update in-memory entries
-        await _fetchDailyCaloriesFromServerVoid();
-        return true;
-      }
-
-      return false;
-    } catch (e) {
-      return false;
+      // Try to parse as double first, then convert to int
+      final parsedDouble = double.tryParse(value);
+      if (parsedDouble != null) return parsedDouble.round();
     }
+
+    return 0;
   }
 
-  /// Check if there are any calorie entries on the server
-  Future<bool> checkServerEntries() async {
-    if (apiService == null) return false;
+  // Helper method to parse doubles
+  double _parseToDouble(dynamic value, {double defaultValue = 0.0}) {
+    if (value == null) return defaultValue;
 
-    try {
-      // Get current user ID from Firebase Auth
-      final userId = apiService!.getCurrentUserId();
-      if (userId == null) {
-        return false;
-      }
-
-      // Try to get entries
-      final response = await apiService!.post('/calories/entries', {
-        'user_id': userId,
-        'period': 'daily',
-      });
-
-      if (response != null && response['success'] == true) {
-        final List<dynamic> serverEntries = response['entries'] ?? [];
-        if (serverEntries.isNotEmpty) {
-          return true;
-        }
-      }
-
-      // Try summary endpoint as fallback
-      final summaryResponse = await apiService!.post('/calories/summary', {
-        'user_id': userId,
-        'period': 'daily',
-        'message':
-            'show me my daily calories', // Help the server determine the right query scope
-      });
-
-      if (summaryResponse != null) {
-        if (summaryResponse['success'] == true &&
-            summaryResponse['summary'] != null) {
-          final summary = summaryResponse['summary'];
-          final totalCalories = _parseToInt(summary['total_calories']);
-          return totalCalories > 0;
-        } else if (summaryResponse['calorie_info'] != null) {
-          final calorieInfo = summaryResponse['calorie_info'];
-          final totalCalories = _parseToInt(calorieInfo['total_calories']);
-          return totalCalories > 0;
-        }
-      }
-
-      return false;
-    } catch (e) {
-      return false;
-    }
-  }
-
-  /// Gets weekly calorie data without caching.
-  Future<Map<String, dynamic>> getWeeklyCalories(
-      {bool forceRefresh = false}) async {
-    try {
-      final result = await _getWeeklyCaloriesImpl(forceRefresh: forceRefresh);
-      return result;
-    } catch (e) {
-      return {
-        'total_calories': 0,
-        'total_carbs': 0.0,
-        'total_protein': 0.0,
-        'total_fat': 0.0,
-        'breakdown': [],
-        'entries': [],
-      };
-    }
-  }
-
-  // Implementation of weekly calories fetching logic
-  Future<Map<String, dynamic>> _getWeeklyCaloriesImpl(
-      {bool forceRefresh = false}) async {
-    if (apiService != null) {
-      try {
-        // Get current user ID from Firebase Auth
-        final userId = apiService!.getCurrentUserId();
-        if (userId == null) {
-          throw Exception('No user ID available');
-        }
-
-        // Get entries for the week with force refresh
-        final entriesResponse = await apiService!.post('/calories/entries', {
-          'user_id': userId,
-          'period': 'weekly',
-          'force_refresh': true,
-          'message':
-              'show me my weekly calories', // Help server understand the context
-        });
-
-        List<dynamic> serverEntries = [];
-        bool hasValidEntries = false;
-
-        if (entriesResponse != null && entriesResponse['success'] == true) {
-          serverEntries = entriesResponse['entries'] ?? [];
-
-          // Debug: Print timestamps of entries to verify date range
-          if (serverEntries.isNotEmpty) {
-            for (var i = 0; i < min(5, serverEntries.length); i++) {
-              final entry = serverEntries[i];
-              if (entry['timestamp'] != null) {
-                try {
-                  final date = DateTime.parse(entry['timestamp']);
-                } catch (e) {}
-              }
-            }
-
-            // Group entries by day of week to see distribution
-            final Map<String, int> caloriesByDay = {};
-            final List<String> weekdays = [
-              'Monday',
-              'Tuesday',
-              'Wednesday',
-              'Thursday',
-              'Friday',
-              'Saturday',
-              'Sunday'
-            ];
-
-            // Initialize with zero calories for each day
-            for (final day in weekdays) {
-              caloriesByDay[day] = 0;
-            }
-
-            for (final entry in serverEntries) {
-              if (entry['timestamp'] != null) {
-                try {
-                  final date = DateTime.parse(entry['timestamp']);
-                  final weekday = _getWeekdayName(date.weekday);
-                  final calories = _parseToInt(entry['calories']);
-                  caloriesByDay[weekday] =
-                      (caloriesByDay[weekday] ?? 0) + calories;
-                } catch (e) {
-                  // Ignore parsing errors
-                }
-              }
-            }
-          }
-
-          if (serverEntries.isNotEmpty) {
-            hasValidEntries = true;
-
-            // Calculate totals from entries
-            int totalCalories = 0;
-            double totalCarbs = 0;
-            double totalProtein = 0;
-            double totalFat = 0;
-
-            // Use a map to track food items for the breakdown
-            final Map<String, Map<String, dynamic>> foodBreakdown = {};
-
-            for (final entry in serverEntries) {
-              // Parse calories
-              int calories = 0;
-              if (entry['calories'] != null) {
-                calories = _parseToInt(entry['calories']);
-              }
-
-              // Add to total
-              totalCalories += calories;
-
-              // Parse and add other nutrients
-              if (entry['carbs'] != null) {
-                totalCarbs += _parseToDouble(entry['carbs']);
-              }
-              if (entry['protein'] != null) {
-                totalProtein += _parseToDouble(entry['protein']);
-              }
-              if (entry['fat'] != null) {
-                totalFat += _parseToDouble(entry['fat']);
-              }
-
-              // Add to breakdown if food name is available
-              final foodItem =
-                  entry['food_item'] ?? entry['food_name'] ?? 'Unknown food';
-              if (!foodBreakdown.containsKey(foodItem)) {
-                foodBreakdown[foodItem] = {
-                  'calories': 0,
-                  'count': 0,
-                };
-              }
-              foodBreakdown[foodItem]!['calories'] += calories;
-              foodBreakdown[foodItem]!['count'] += 1;
-            }
-
-            // Convert breakdown to list and sort by calories
-            final List<Map<String, dynamic>> breakdownList =
-                foodBreakdown.entries
-                    .map((entry) => {
-                          'food_name': entry.key,
-                          'calories': entry.value['calories'],
-                          'count': entry.value['count'],
-                        })
-                    .toList();
-            breakdownList
-                .sort((a, b) => b['calories'].compareTo(a['calories']));
-
-            // Create result map
-            return {
-              'total_calories': totalCalories,
-              'total_carbs': totalCarbs,
-              'total_protein': totalProtein,
-              'total_fat': totalFat,
-              'breakdown': breakdownList,
-              'entries': serverEntries,
-            };
-          }
-        } else {}
-
-        // If we don't have valid entries, try to get summary
-        final summaryResponse = await apiService!.post('/calories/summary', {
-          'user_id': userId,
-          'period': 'weekly',
-          'message':
-              'show me my weekly calories by day', // More specific for daily breakdown
-          'force_refresh': true, // Add force_refresh parameter
-        });
-
-        if (summaryResponse != null && summaryResponse['success'] == true) {
-          final summary = summaryResponse['summary'] ??
-              summaryResponse['calorie_info'] ??
-              {};
-
-          // Parse values
-          final totalCalories = _parseToInt(summary['total_calories']);
-          final totalCarbs = _parseToDouble(summary['total_carbs']);
-          final totalProtein = _parseToDouble(summary['total_protein']);
-          final totalFat = _parseToDouble(summary['total_fat']);
-
-          // Get breakdown if available
-          List<Map<String, dynamic>> breakdownList = [];
-          if (summary['breakdown'] != null && summary['breakdown'] is List) {
-            breakdownList = (summary['breakdown'] as List)
-                .map((item) => {
-                      'food_name': item['food_name'] ?? 'Unknown',
-                      'calories': _parseToInt(item['calories']),
-                      'count': _parseToInt(item['count'] ?? 1),
-                    })
-                .toList();
-          }
-
-          // In case server didn't provide entries but we have summary
-          if (serverEntries.isEmpty) {
-            // Try to get entries separately
-            final retryEntriesResponse =
-                await apiService!.post('/calories/entries', {
-              'user_id': userId,
-              'period': 'weekly',
-              'force_refresh': true,
-            });
-
-            if (retryEntriesResponse != null &&
-                retryEntriesResponse['success'] == true) {
-              serverEntries = retryEntriesResponse['entries'] ?? [];
-            }
-          }
-
-          return {
-            'total_calories': totalCalories,
-            'total_carbs': totalCarbs,
-            'total_protein': totalProtein,
-            'total_fat': totalFat,
-            'breakdown': breakdownList,
-            'entries': serverEntries,
-          };
-        } else {}
-      } catch (e) {}
-    } else {}
-
-    // If we reach here, we couldn't get data from the server
-    // Calculate from local entries
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-
-    // Get the date for the start of the week (Monday)
-    final currentWeekday = now.weekday;
-    final startOfWeek = now.subtract(Duration(days: currentWeekday - 1));
-    final startOfWeekMidnight =
-        DateTime(startOfWeek.year, startOfWeek.month, startOfWeek.day);
-
-    // Filter entries for current week only
-    final weeklyEntries = _entries.where((entry) {
-      return entry.timestamp.isAfter(
-              startOfWeekMidnight.subtract(const Duration(minutes: 1))) &&
-          entry.timestamp
-              .isBefore(startOfWeekMidnight.add(const Duration(days: 7)));
-    }).toList();
-
-    int totalCalories = 0;
-    double totalCarbs = 0;
-    double totalProtein = 0;
-    double totalFat = 0;
-
-    for (final entry in weeklyEntries) {
-      totalCalories += entry.calories;
-      totalCarbs += entry.carbs?.toDouble() ?? 0;
-      totalProtein += entry.protein?.toDouble() ?? 0;
-      totalFat += entry.fat?.toDouble() ?? 0;
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    if (value is String) {
+      final parsed = double.tryParse(value);
+      if (parsed != null) return parsed;
     }
 
-    return {
-      'total_calories': totalCalories,
-      'total_carbs': totalCarbs,
-      'total_protein': totalProtein,
-      'total_fat': totalFat,
-      'breakdown': [],
-      'entries': weeklyEntries.map((e) => e.toJson()).toList(),
-    };
-  }
-
-  // Helper to convert weekday number to name
-  String _getWeekdayName(int weekday) {
-    switch (weekday) {
-      case 1:
-        return 'Monday';
-      case 2:
-        return 'Tuesday';
-      case 3:
-        return 'Wednesday';
-      case 4:
-        return 'Thursday';
-      case 5:
-        return 'Friday';
-      case 6:
-        return 'Saturday';
-      case 7:
-        return 'Sunday';
-      default:
-        return 'Unknown';
-    }
-  }
-
-  /// Gets monthly calorie data without caching.
-  Future<Map<String, dynamic>> getMonthlyCalories(
-      {bool forceRefresh = false}) async {
-    try {
-      final result = await _getMonthlyCaloriesImpl(forceRefresh: forceRefresh);
-      return result;
-    } catch (e) {
-      return {
-        'total_calories': 0,
-        'total_carbs': 0.0,
-        'total_protein': 0.0,
-        'total_fat': 0.0,
-        'breakdown': [],
-        'entries': [],
-      };
-    }
-  }
-
-  // Implementation of monthly calories fetching logic
-  Future<Map<String, dynamic>> _getMonthlyCaloriesImpl(
-      {bool forceRefresh = false}) async {
-    if (apiService != null) {
-      try {
-        // Get current user ID from Firebase Auth
-        final userId = apiService!.getCurrentUserId();
-        if (userId == null) {
-          throw Exception('No user ID available');
-        }
-
-        // Get entries for the month
-        final entriesResponse = await apiService!.post('/calories/entries', {
-          'user_id': userId,
-          'period': 'monthly',
-        });
-
-        List<dynamic> serverEntries = [];
-        bool hasValidEntries = false;
-
-        if (entriesResponse != null && entriesResponse['success'] == true) {
-          serverEntries = entriesResponse['entries'] ?? [];
-          if (serverEntries.isNotEmpty) {
-            hasValidEntries = true;
-
-            // Calculate totals from entries
-            int totalCalories = 0;
-            double totalCarbs = 0;
-            double totalProtein = 0;
-            double totalFat = 0;
-
-            // Use a map to track food items for the breakdown
-            final Map<String, Map<String, dynamic>> foodBreakdown = {};
-
-            for (final entry in serverEntries) {
-              // Parse calories
-              int calories = 0;
-              if (entry['calories'] != null) {
-                calories = _parseToInt(entry['calories']);
-              }
-
-              // Add to total
-              totalCalories += calories;
-
-              // Parse and add other nutrients
-              if (entry['carbs'] != null) {
-                totalCarbs += _parseToDouble(entry['carbs']);
-              }
-              if (entry['protein'] != null) {
-                totalProtein += _parseToDouble(entry['protein']);
-              }
-              if (entry['fat'] != null) {
-                totalFat += _parseToDouble(entry['fat']);
-              }
-
-              // Add to breakdown if food name is available
-              final foodItem =
-                  entry['food_item'] ?? entry['food_name'] ?? 'Unknown food';
-              if (!foodBreakdown.containsKey(foodItem)) {
-                foodBreakdown[foodItem] = {
-                  'calories': 0,
-                  'count': 0,
-                };
-              }
-              foodBreakdown[foodItem]!['calories'] += calories;
-              foodBreakdown[foodItem]!['count'] += 1;
-            }
-
-            // Convert breakdown to list and sort by calories
-            final List<Map<String, dynamic>> breakdownList =
-                foodBreakdown.entries
-                    .map((entry) => {
-                          'food_name': entry.key,
-                          'calories': entry.value['calories'],
-                          'count': entry.value['count'],
-                        })
-                    .toList();
-            breakdownList
-                .sort((a, b) => b['calories'].compareTo(a['calories']));
-
-            // Create result map
-            return {
-              'total_calories': totalCalories,
-              'total_carbs': totalCarbs,
-              'total_protein': totalProtein,
-              'total_fat': totalFat,
-              'breakdown': breakdownList,
-              'entries': serverEntries,
-            };
-          }
-        }
-
-        // If we don't have valid entries, try to get summary
-        final summaryResponse = await apiService!.post('/calories/summary', {
-          'user_id': userId,
-          'period': 'monthly',
-          'message':
-              'show me my monthly calories', // Help the server determine the right query scope
-        });
-
-        if (summaryResponse != null && summaryResponse['success'] == true) {
-          final summary = summaryResponse['summary'] ??
-              summaryResponse['calorie_info'] ??
-              {};
-
-          // Parse values
-          final totalCalories = _parseToInt(summary['total_calories']);
-          final totalCarbs = _parseToDouble(summary['total_carbs']);
-          final totalProtein = _parseToDouble(summary['total_protein']);
-          final totalFat = _parseToDouble(summary['total_fat']);
-
-          // Get breakdown if available
-          List<Map<String, dynamic>> breakdownList = [];
-          if (summary['breakdown'] != null && summary['breakdown'] is List) {
-            breakdownList = (summary['breakdown'] as List)
-                .map((item) => {
-                      'food_name': item['food_name'] ?? 'Unknown',
-                      'calories': _parseToInt(item['calories']),
-                      'count': _parseToInt(item['count'] ?? 1),
-                    })
-                .toList();
-          }
-
-          return {
-            'total_calories': totalCalories,
-            'total_carbs': totalCarbs,
-            'total_protein': totalProtein,
-            'total_fat': totalFat,
-            'breakdown': breakdownList,
-            'entries': serverEntries,
-          };
-        }
-      } catch (e) {}
-    }
-
-    // If we reach here, we couldn't get data from the server
-    // Calculate from local entries
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final monthAgo = DateTime(today.year, today.month - 1, today.day);
-
-    final monthlyEntries =
-        _entries.where((entry) => entry.timestamp.isAfter(monthAgo)).toList();
-
-    int totalCalories = 0;
-    double totalCarbs = 0;
-    double totalProtein = 0;
-    double totalFat = 0;
-
-    for (final entry in monthlyEntries) {
-      totalCalories += entry.calories;
-      totalCarbs += entry.carbs?.toDouble() ?? 0;
-      totalProtein += entry.protein?.toDouble() ?? 0;
-      totalFat += entry.fat?.toDouble() ?? 0;
-    }
-
-    return {
-      'total_calories': totalCalories,
-      'total_carbs': totalCarbs,
-      'total_protein': totalProtein,
-      'total_fat': totalFat,
-      'breakdown': [],
-      'entries': monthlyEntries.map((e) => e.toJson()).toList(),
-    };
-  }
-
-  /// Deletes a calorie entry
-  Future<bool> deleteCalorieEntry(String id) async {
-    try {
-      // Get current user ID
-      final userId = apiService?.getCurrentUserId();
-      if (userId == null) {
-        throw Exception('No user ID available');
-      }
-
-      // If we have an API service, try to delete on the server
-      if (apiService != null) {
-        final response = await apiService!.post('/calories/entries/delete', {
-          'user_id': userId,
-          'entry_id': id,
-        });
-
-        // Check if the deletion was successful
-        if (response is Map<String, dynamic> && response['success'] == true) {
-          // Refresh local data from server to ensure consistency
-          await _fetchDailyCaloriesFromServerVoid();
-          return true;
-        } else {
-          return false;
-        }
-      }
-
-      // If no API service or server deletion failed, delete locally
-      // Find the entry in the local list
-      await _initializeEntries();
-
-      // Since we don't have a direct way to identify entries by ID in the local storage,
-      // this would require implementing a local deletion mechanism with a unique identifier.
-      // For now, we'll just return false if the API service is not available.
-      return false;
-    } catch (e) {
-      throw Exception('Failed to delete calorie entry: $e');
-    }
-  }
-
-  /// Updates an existing calorie entry
-  Future<bool> updateCalorieEntry(String id, String foodItem, int calories,
-      {int? protein,
-      int? carbs,
-      int? fat,
-      double quantity = 1.0,
-      String unit = 'serving'}) async {
-    try {
-      // Get current user ID
-      final userId = apiService?.getCurrentUserId();
-      if (userId == null) {
-        throw Exception('No user ID available');
-      }
-
-      // If we have an API service, try to update on the server
-      if (apiService != null) {
-        final response = await apiService!.post('/calories/entries/update', {
-          'user_id': userId,
-          'entry_id': id,
-          'food_item': foodItem,
-          'calories': calories,
-          'protein': protein,
-          'carbs': carbs,
-          'fat': fat,
-          'quantity': quantity,
-          'unit': unit,
-        });
-
-        // Check if the update was successful
-        if (response is Map<String, dynamic> && response['success'] == true) {
-          // Update the entry in the local list as well
-          await _initializeEntries();
-
-          // Remove the old entry with the same ID
-          _entries.removeWhere((entry) => entry.id == id);
-
-          // Create a new entry with the updated values
-          final updatedEntry = CalorieEntry(
-            id: id,
-            foodItem: foodItem,
-            calories: calories,
-            protein: protein,
-            carbs: carbs,
-            fat: fat,
-            quantity: quantity,
-            unit: unit,
-            timestamp: DateTime.now(), // Use current timestamp for the update
-          );
-
-          // Add the updated entry to the local list
-          _entries.add(updatedEntry);
-
-          // Save the updated entries to local storage
-          await _saveEntries();
-
-          // Refresh local data from server to ensure consistency
-          await _fetchDailyCaloriesFromServerVoid();
-          return true;
-        } else {
-          return false;
-        }
-      }
-
-      // If no API service or server update failed, update locally
-      // Find the entry in the local list
-      await _initializeEntries();
-
-      // Since we don't have a direct way to identify entries by ID in the local storage,
-      // this would require implementing a local update mechanism with a unique identifier.
-      // For now, we'll just return false if the API service is not available.
-      return false;
-    } catch (e) {
-      throw Exception('Failed to update calorie entry: $e');
-    }
+    return defaultValue;
   }
 }

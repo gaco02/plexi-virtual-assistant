@@ -31,6 +31,9 @@ class _CalorieDetailsScreenState extends State<CalorieDetailsScreen>
   String _selectedTimeFrame = 'Today';
   final List<String> _timeFrames = ['Today', 'Week', 'Month'];
 
+  // Add a flag to prevent multiple didChangeDependencies calls
+  bool _isInitialized = false;
+
   // Selected date for the calendar view
   DateTime _selectedDate = DateTime.now();
 
@@ -79,8 +82,12 @@ class _CalorieDetailsScreenState extends State<CalorieDetailsScreen>
   void didChangeDependencies() {
     super.didChangeDependencies();
 
-    // Only load data once when the widget is first built
-    if (!_hasLoadedInitialData) {
+    print("CalorieDetailsScreen: didChangeDependencies called");
+
+    // Only initialize repository and data once when the widget dependencies are first available
+    if (!_isInitialized) {
+      print("CalorieDetailsScreen: Initial data load triggered");
+      _isInitialized = true;
       _hasLoadedInitialData = true;
 
       // Get the repository from context
@@ -88,13 +95,22 @@ class _CalorieDetailsScreenState extends State<CalorieDetailsScreen>
 
       // Check current bloc state before loading
       final calorieState = context.read<CalorieBloc>().state;
+      print("CalorieDetailsScreen: Current bloc state: ${calorieState.status}");
+      print(
+          "CalorieDetailsScreen: Current totalCalories in bloc: ${calorieState.totalCalories}");
 
       // If we already have loaded data, don't trigger a reload
       if (calorieState.status == CalorieStatus.loaded) {
-        _isLoading = false;
+        print(
+            "CalorieDetailsScreen: Already loaded state - not forcing refresh");
+        setState(() {
+          _isLoading = false;
+        });
         // Just load the entries without forcing a refresh
         _loadCalorieEntries(forceRefresh: false);
       } else if (calorieState.status != CalorieStatus.loading) {
+        print(
+            "CalorieDetailsScreen: Loading state not detected - triggering daily calories load");
         // Only load daily calories if we don't have data
         context
             .read<CalorieBloc>()
@@ -103,10 +119,14 @@ class _CalorieDetailsScreenState extends State<CalorieDetailsScreen>
         // Wait for daily data to load before loading entries
         Future.delayed(const Duration(milliseconds: 300), () {
           if (mounted && _isLoading) {
+            print("CalorieDetailsScreen: Loading entries after delay");
             _loadCalorieEntries(forceRefresh: true);
           }
         });
       }
+    } else {
+      print(
+          "CalorieDetailsScreen: didChangeDependencies skipping load - already initialized");
     }
   }
 
@@ -140,61 +160,61 @@ class _CalorieDetailsScreenState extends State<CalorieDetailsScreen>
           // If essential metrics are missing, show a screen prompting to complete profile
           if (!hasEssentialMetrics) {
             return Scaffold(
-              extendBodyBehindAppBar: true,
-              backgroundColor: Colors.transparent,
-              appBar: AppBar(
+                extendBodyBehindAppBar: true,
                 backgroundColor: Colors.transparent,
-                elevation: 0,
-                title: const Text('Calorie Tracker'),
-              ),
-              body: AppBackground(
-                child: Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24.0),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(
-                          Icons.person_outline,
-                          color: Colors.white,
-                          size: 64,
-                        ),
-                        const SizedBox(height: 24),
-                        const Text(
-                          'Complete Your Profile',
-                          style: TextStyle(
+                appBar: AppBar(
+                  backgroundColor: Colors.transparent,
+                  elevation: 0,
+                  title: const Text('Calorie Tracker'),
+                ),
+                body: AppBackground(
+                  child: Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24.0),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(
+                            Icons.person_outline,
                             color: Colors.white,
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
+                            size: 64,
                           ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 16),
-                        const Text(
-                          'We need some information about you to provide accurate calorie tracking and recommendations.',
-                          style: TextStyle(color: Colors.white70, fontSize: 16),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 32),
-                        ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.blue,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 32,
-                              vertical: 16,
+                          const SizedBox(height: 24),
+                          const Text(
+                            'Complete Your Profile',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
                             ),
+                            textAlign: TextAlign.center,
                           ),
-                          onPressed: () {
-                            // Navigate to profile completion screen
-                          },
-                          child: const Text('Complete Profile'),
-                        ),
-                      ],
+                          const SizedBox(height: 16),
+                          const Text(
+                            'We need some information about you to provide accurate calorie tracking and recommendations.',
+                            style:
+                                TextStyle(color: Colors.white70, fontSize: 16),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 32),
+                          ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.blue,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 32,
+                                vertical: 16,
+                              ),
+                            ),
+                            onPressed: () {
+                              // Navigate to profile completion screen
+                            },
+                            child: const Text('Complete Profile'),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-              ),
-            );
+                ));
           }
 
           final filteredEntries = _getFilteredEntries();
@@ -368,12 +388,12 @@ class _CalorieDetailsScreenState extends State<CalorieDetailsScreen>
       builder: (context, state) {
         // If we don't have entries in the state, trigger monthly data load
         // But only if we're not just coming from onboarding
-        if (state.entries.isEmpty && 
-            state.status != CalorieStatus.loading && 
+        if (state.entries.isEmpty &&
+            state.status != CalorieStatus.loading &&
             !_justCompletedOnboarding) {
           context.read<CalorieBloc>().add(const LoadMonthlyCalories());
         }
-        
+
         // If this is the first time we're building after onboarding, set the flag to false
         // so that future refreshes will work normally
         if (_justCompletedOnboarding) {
@@ -898,6 +918,9 @@ class _CalorieDetailsScreenState extends State<CalorieDetailsScreen>
   }
 
   Future<void> _loadCalorieEntries({bool forceRefresh = false}) async {
+    print(
+        "CalorieDetailsScreen: _loadCalorieEntries called with forceRefresh=$forceRefresh");
+
     // Prevent duplicate loading operations but don't return if already loading
     // since we need to ensure data loads
     if (!_isLoading) {
@@ -905,13 +928,14 @@ class _CalorieDetailsScreenState extends State<CalorieDetailsScreen>
     }
 
     try {
-      // Only refresh from server if explicitly requested
-      if (forceRefresh) {
-        await _repository.refreshFromServer();
-      }
-
+      print(
+          "CalorieDetailsScreen: Calling repository.getCalorieEntries(forceRefresh=$forceRefresh)");
+      // Only get entries from repository without calculating totals
       final allEntries =
           await _repository.getCalorieEntries(forceRefresh: forceRefresh);
+      print(
+          "CalorieDetailsScreen: Retrieved ${allEntries.length} entries from repository");
+
       allEntries.sort((a, b) => b.timestamp.compareTo(a.timestamp));
 
       // Deduplicate
@@ -925,9 +949,13 @@ class _CalorieDetailsScreenState extends State<CalorieDetailsScreen>
           uniqueEntries.add(entry);
         }
       }
+      print(
+          "CalorieDetailsScreen: After deduplication, got ${uniqueEntries.length} unique entries");
 
       // Limit the number
       final limitedEntries = uniqueEntries.take(_maxEntriesToLoad).toList();
+      print(
+          "CalorieDetailsScreen: Limited to ${limitedEntries.length} entries");
 
       if (mounted) {
         setState(() {
@@ -937,12 +965,15 @@ class _CalorieDetailsScreenState extends State<CalorieDetailsScreen>
 
         // Only update the CalorieBloc if we've refreshed the data
         if (forceRefresh) {
+          print(
+              "CalorieDetailsScreen: Dispatching LoadDailyCalories event to bloc due to forceRefresh=true");
           context
               .read<CalorieBloc>()
               .add(const LoadDailyCalories(forceRefresh: true));
         }
       }
     } catch (e) {
+      print("CalorieDetailsScreen: Error loading entries: $e");
       if (mounted) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1105,34 +1136,23 @@ class _CalorieDetailsScreenState extends State<CalorieDetailsScreen>
         ),
       );
 
-      final success = await _repository.refreshFromServer();
-      if (success) {
-        context
-            .read<CalorieBloc>()
-            .add(const LoadDailyCalories(forceRefresh: true));
-        await _loadCalorieEntries(forceRefresh: true);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Calorie data refreshed from server'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to refresh data from server'),
-            backgroundColor: Colors.red,
-          ),
-        );
-        setState(() => _isLoading = false);
-      }
+      // Use the existing getCalorieEntries method with forceRefresh set to true
+      await _repository.getCalorieEntries(forceRefresh: true);
+
+      context
+          .read<CalorieBloc>()
+          .add(const LoadDailyCalories(forceRefresh: true));
+      await _loadCalorieEntries(forceRefresh: true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Calorie data refreshed from server'),
+          backgroundColor: Colors.green,
+        ),
+      );
     } catch (e) {
       setState(() => _isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error refreshing data: $e'),
-          backgroundColor: Colors.red,
-        ),
+        SnackBar(content: Text('Error refreshing data: $e')),
       );
     }
   }

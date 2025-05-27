@@ -52,7 +52,7 @@ void main() async {
   // Create a single instance of ApiService to be shared across repositories.
   final apiService = ApiService(
       // baseUrl: 'https://tiktok-analyzer-291212790768.us-west1.run.app');
-      baseUrl: 'http://192.168.1.180:8000');
+      baseUrl: 'http://192.168.1.148:8000');
 
   // Create CalorieRepository with ApiService
   final calorieRepository = CalorieRepository(apiService: apiService);

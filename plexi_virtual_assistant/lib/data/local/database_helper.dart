@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 import '../models/transaction.dart';
 import '../models/transaction_analysis.dart';
+import '../models/calorie_entry.dart';
 
 /// DatabaseHelper class handles all SQLite database operations
 class DatabaseHelper {
@@ -32,8 +33,9 @@ class DatabaseHelper {
 
     return await sqflite.openDatabase(
       path,
-      version: 1,
+      version: 2, // Increment version to trigger migration
       onCreate: _onCreate,
+      onUpgrade: _onUpgrade,
     );
   }
 
@@ -96,6 +98,37 @@ class DatabaseHelper {
       )
     ''');
 
+    // Create calorie_entries table
+    await db.execute('''
+      CREATE TABLE calorie_entries (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        food_item TEXT NOT NULL,
+        calories INTEGER NOT NULL,
+        protein INTEGER,
+        carbs INTEGER,
+        fat INTEGER,
+        quantity REAL NOT NULL,
+        unit TEXT NOT NULL,
+        timestamp INTEGER NOT NULL,
+        synced INTEGER DEFAULT 0,
+        server_id TEXT
+      )
+    ''');
+
+    // Create calorie_daily_summary table for caching daily summaries
+    await db.execute('''
+      CREATE TABLE calorie_daily_summary (
+        date TEXT PRIMARY KEY,
+        total_calories INTEGER NOT NULL,
+        total_carbs REAL NOT NULL,
+        total_protein REAL NOT NULL,
+        total_fat REAL NOT NULL,
+        breakdown TEXT NOT NULL,
+        last_updated INTEGER NOT NULL
+      )
+    ''');
+
     // Create indexes for faster queries
     await db.execute(
         'CREATE INDEX transactions_timestamp_idx ON transactions (timestamp)');
@@ -103,6 +136,53 @@ class DatabaseHelper {
         'CREATE INDEX transactions_category_idx ON transactions (category)');
     await db.execute(
         'CREATE INDEX transactions_user_id_idx ON transactions (user_id)');
+    await db.execute(
+        'CREATE INDEX calorie_entries_timestamp_idx ON calorie_entries (timestamp)');
+    await db.execute(
+        'CREATE INDEX calorie_entries_user_id_idx ON calorie_entries (user_id)');
+  }
+
+  /// Handle database upgrades
+  Future<void> _onUpgrade(
+      sqflite.Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      // Add calorie_entries table if upgrading from version 1
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS calorie_entries (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL,
+          food_item TEXT NOT NULL,
+          calories INTEGER NOT NULL,
+          protein INTEGER,
+          carbs INTEGER,
+          fat INTEGER,
+          quantity REAL NOT NULL,
+          unit TEXT NOT NULL,
+          timestamp INTEGER NOT NULL,
+          synced INTEGER DEFAULT 0,
+          server_id TEXT
+        )
+      ''');
+
+      // Add calorie_daily_summary table
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS calorie_daily_summary (
+          date TEXT PRIMARY KEY,
+          total_calories INTEGER NOT NULL,
+          total_carbs REAL NOT NULL,
+          total_protein REAL NOT NULL,
+          total_fat REAL NOT NULL,
+          breakdown TEXT NOT NULL,
+          last_updated INTEGER NOT NULL
+        )
+      ''');
+
+      // Create indexes for calorie tables
+      await db.execute(
+          'CREATE INDEX IF NOT EXISTS calorie_entries_timestamp_idx ON calorie_entries (timestamp)');
+      await db.execute(
+          'CREATE INDEX IF NOT EXISTS calorie_entries_user_id_idx ON calorie_entries (user_id)');
+    }
   }
 
   // =========================
@@ -602,5 +682,331 @@ class DatabaseHelper {
     await db.delete('transaction_analysis');
     await db.delete('category_totals');
     await db.delete('sync_status');
+  }
+
+  // =========================
+  // Calorie Entry Operations
+  // =========================
+
+  /// Insert a single calorie entry
+  Future<int> insertCalorieEntry(CalorieEntry entry, String userId) async {
+    sqflite.Database db = await database;
+    return await db.insert(
+      'calorie_entries',
+      _calorieEntryToMap(entry, userId),
+      conflictAlgorithm: sqflite.ConflictAlgorithm.replace,
+    );
+  }
+
+  /// Insert multiple calorie entries
+  Future<void> insertCalorieEntries(
+      List<CalorieEntry> entries, String userId) async {
+    sqflite.Database db = await database;
+
+    await db.transaction((txn) async {
+      sqflite.Batch batch = txn.batch();
+
+      for (var entry in entries) {
+        batch.insert(
+          'calorie_entries',
+          _calorieEntryToMap(entry, userId),
+          conflictAlgorithm: sqflite.ConflictAlgorithm.replace,
+        );
+      }
+
+      await batch.commit();
+    });
+  }
+
+  /// Update an existing calorie entry
+  Future<int> updateCalorieEntry(CalorieEntry entry, String userId) async {
+    sqflite.Database db = await database;
+
+    return await db.update(
+      'calorie_entries',
+      _calorieEntryToMap(entry, userId),
+      where: 'id = ?',
+      whereArgs: [entry.id],
+    );
+  }
+
+  /// Delete a calorie entry by id
+  Future<int> deleteCalorieEntry(String id) async {
+    sqflite.Database db = await database;
+
+    return await db.delete(
+      'calorie_entries',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  /// Get a calorie entry by id
+  Future<CalorieEntry?> getCalorieEntry(String id) async {
+    sqflite.Database db = await database;
+
+    List<Map<String, dynamic>> maps = await db.query(
+      'calorie_entries',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+
+    if (maps.isNotEmpty) {
+      return _mapToCalorieEntry(maps.first);
+    }
+
+    return null;
+  }
+
+  /// Get all calorie entries for a user
+  Future<List<CalorieEntry>> getAllCalorieEntries(String userId) async {
+    sqflite.Database db = await database;
+
+    List<Map<String, dynamic>> maps = await db.query(
+      'calorie_entries',
+      where: 'user_id = ?',
+      whereArgs: [userId],
+      orderBy: 'timestamp DESC',
+    );
+
+    return List.generate(maps.length, (i) => _mapToCalorieEntry(maps[i]));
+  }
+
+  /// Get calorie entries for a specific date
+  Future<List<CalorieEntry>> getCalorieEntriesForDate(
+      String userId, DateTime date) async {
+    sqflite.Database db = await database;
+
+    // Get start and end of the specified date
+    final startDate = DateTime(date.year, date.month, date.day);
+    final endDate = DateTime(date.year, date.month, date.day, 23, 59, 59, 999);
+
+    final startTimestamp = startDate.millisecondsSinceEpoch;
+    final endTimestamp = endDate.millisecondsSinceEpoch;
+
+    List<Map<String, dynamic>> maps = await db.query(
+      'calorie_entries',
+      where: 'user_id = ? AND timestamp >= ? AND timestamp <= ?',
+      whereArgs: [userId, startTimestamp, endTimestamp],
+      orderBy: 'timestamp DESC',
+    );
+
+    return List.generate(maps.length, (i) => _mapToCalorieEntry(maps[i]));
+  }
+
+  /// Get calorie entries for a date range
+  Future<List<CalorieEntry>> getCalorieEntriesForDateRange(
+      String userId, DateTime startDate, DateTime endDate) async {
+    sqflite.Database db = await database;
+
+    // Use the start of the start date and end of the end date
+    final start = DateTime(startDate.year, startDate.month, startDate.day);
+    final end =
+        DateTime(endDate.year, endDate.month, endDate.day, 23, 59, 59, 999);
+
+    final startTimestamp = start.millisecondsSinceEpoch;
+    final endTimestamp = end.millisecondsSinceEpoch;
+
+    List<Map<String, dynamic>> maps = await db.query(
+      'calorie_entries',
+      where: 'user_id = ? AND timestamp >= ? AND timestamp <= ?',
+      whereArgs: [userId, startTimestamp, endTimestamp],
+      orderBy: 'timestamp DESC',
+    );
+
+    return List.generate(maps.length, (i) => _mapToCalorieEntry(maps[i]));
+  }
+
+  /// Save daily calorie summary
+  Future<void> saveDailyCalorieSummary(
+      String date, Map<String, dynamic> summary) async {
+    sqflite.Database db = await database;
+
+    // Convert breakdown list to JSON string
+    final breakdownJson = jsonEncode(summary['breakdown'] ?? []);
+
+    await db.insert(
+      'calorie_daily_summary',
+      {
+        'date': date,
+        'total_calories': summary['totalCalories'] ?? 0,
+        'total_carbs': summary['totalCarbs'] ?? 0.0,
+        'total_protein': summary['totalProtein'] ?? 0.0,
+        'total_fat': summary['totalFat'] ?? 0.0,
+        'breakdown': breakdownJson,
+        'last_updated': DateTime.now().millisecondsSinceEpoch,
+      },
+      conflictAlgorithm: sqflite.ConflictAlgorithm.replace,
+    );
+  }
+
+  /// Get cached daily calorie summary
+  Future<Map<String, dynamic>?> getDailyCalorieSummary(String date) async {
+    sqflite.Database db = await database;
+
+    List<Map<String, dynamic>> maps = await db.query(
+      'calorie_daily_summary',
+      where: 'date = ?',
+      whereArgs: [date],
+    );
+
+    if (maps.isEmpty) {
+      return null;
+    }
+
+    final data = maps.first;
+    List<dynamic> breakdownList = [];
+
+    try {
+      breakdownList = jsonDecode(data['breakdown'] as String) ?? [];
+    } catch (e) {
+      // Handle JSON parsing error
+    }
+
+    return {
+      'totalCalories': data['total_calories'] as int,
+      'totalCarbs': data['total_carbs'] as double,
+      'totalProtein': data['total_protein'] as double,
+      'totalFat': data['total_fat'] as double,
+      'breakdown': breakdownList,
+      'lastUpdated': data['last_updated'] as int,
+    };
+  }
+
+  /// Check if a daily calorie summary cache is stale
+  Future<bool> isCalorieSummaryCacheStale(String date, Duration maxAge) async {
+    sqflite.Database db = await database;
+
+    List<Map<String, dynamic>> maps = await db.query(
+      'calorie_daily_summary',
+      columns: ['last_updated'],
+      where: 'date = ?',
+      whereArgs: [date],
+    );
+
+    if (maps.isEmpty) {
+      return true;
+    }
+
+    final lastUpdated = maps.first['last_updated'] as int;
+    final lastUpdateTime = DateTime.fromMillisecondsSinceEpoch(lastUpdated);
+    final now = DateTime.now();
+
+    return now.difference(lastUpdateTime) > maxAge;
+  }
+
+  /// Mark entries as synced with the server
+  Future<void> markCalorieEntriesAsSynced(List<String> ids,
+      [String? serverId]) async {
+    sqflite.Database db = await database;
+
+    await db.transaction((txn) async {
+      for (var id in ids) {
+        await txn.update(
+          'calorie_entries',
+          {
+            'synced': 1,
+            if (serverId != null) 'server_id': serverId,
+          },
+          where: 'id = ?',
+          whereArgs: [id],
+        );
+      }
+    });
+  }
+
+  /// Get unsynced calorie entries
+  Future<List<CalorieEntry>> getUnsyncedCalorieEntries() async {
+    sqflite.Database db = await database;
+
+    List<Map<String, dynamic>> maps = await db.query(
+      'calorie_entries',
+      where: 'synced = ?',
+      whereArgs: [0],
+      orderBy: 'timestamp ASC',
+    );
+
+    return List.generate(maps.length, (i) => _mapToCalorieEntry(maps[i]));
+  }
+
+  /// Save a single calorie entry (combines insert and update)
+  Future<void> saveCalorieEntry(CalorieEntry entry, String userId) async {
+    // Check if entry exists
+    final existingEntry = await getCalorieEntry(entry.id);
+
+    if (existingEntry == null) {
+      // Insert new entry
+      await insertCalorieEntry(entry, userId);
+    } else {
+      // Update existing entry
+      await updateCalorieEntry(entry, userId);
+    }
+  }
+
+  /// Save multiple calorie entries (combines insert and update)
+  Future<void> saveCalorieEntries(
+      List<CalorieEntry> entries, String userId) async {
+    sqflite.Database db = await database;
+
+    await db.transaction((txn) async {
+      for (var entry in entries) {
+        // Check if entry exists using a query within the transaction
+        final existingEntries = await txn.query(
+          'calorie_entries',
+          where: 'id = ?',
+          whereArgs: [entry.id],
+        );
+
+        if (existingEntries.isEmpty) {
+          // Insert new entry
+          await txn.insert(
+            'calorie_entries',
+            _calorieEntryToMap(entry, userId),
+            conflictAlgorithm: sqflite.ConflictAlgorithm.replace,
+          );
+        } else {
+          // Update existing entry
+          await txn.update(
+            'calorie_entries',
+            _calorieEntryToMap(entry, userId),
+            where: 'id = ?',
+            whereArgs: [entry.id],
+          );
+        }
+      }
+    });
+  }
+
+  /// Convert a CalorieEntry object to a Map for database storage
+  Map<String, dynamic> _calorieEntryToMap(CalorieEntry entry, String userId) {
+    return {
+      'id': entry.id,
+      'user_id': userId,
+      'food_item': entry.foodItem,
+      'calories': entry.calories,
+      'protein': entry.protein,
+      'carbs': entry.carbs,
+      'fat': entry.fat,
+      'quantity': entry.quantity,
+      'unit': entry.unit,
+      'timestamp': entry.timestamp.millisecondsSinceEpoch,
+      'synced': 0, // Default to unsynced
+      'server_id': entry.id, // Use local ID as server ID initially
+    };
+  }
+
+  /// Convert a database Map to a CalorieEntry object
+  CalorieEntry _mapToCalorieEntry(Map<String, dynamic> map) {
+    return CalorieEntry(
+      id: map['id'] as String,
+      foodItem: map['food_item'] as String,
+      calories: map['calories'] as int,
+      protein: map['protein'] as int?,
+      carbs: map['carbs'] as int?,
+      fat: map['fat'] as int?,
+      quantity: map['quantity'] as double,
+      unit: map['unit'] as String,
+      timestamp: DateTime.fromMillisecondsSinceEpoch(map['timestamp'] as int),
+    );
   }
 }
