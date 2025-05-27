@@ -453,13 +453,6 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen>
           ),
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          _showAddTransactionDialog(context);
-        },
-        backgroundColor: Theme.of(context).colorScheme.secondary,
-        child: const Icon(Icons.add),
-      ),
     );
   }
 
