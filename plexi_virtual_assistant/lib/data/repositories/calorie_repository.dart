@@ -1,7 +1,5 @@
 import 'dart:async';
 import '../models/calorie_entry.dart';
-import 'dart:convert';
-import 'dart:math';
 import '../../services/api_service.dart';
 import 'package:synchronized/synchronized.dart';
 import '../local/database_helper.dart';
@@ -153,17 +151,43 @@ class CalorieRepository {
           }
 
           if (newEntries.isNotEmpty) {
-            // Replace the in-memory list with new entries from server to avoid duplication
-            // First, preserve any local entries that might not be on the server yet
-            final localOnlyEntries = _entries.where((localEntry) {
-              // Keep entries that don't have a server ID (newly created, not yet synced)
-              return localEntry.id == null ||
-                  !newEntries
-                      .any((serverEntry) => serverEntry.id == localEntry.id);
-            }).toList();
+            // Merge server entries with local entries, avoiding duplicates
+            // Keep track of server IDs to avoid duplicates
+            final Set<String> serverIds = newEntries.map((e) => e.id).toSet();
 
-            // Combine server entries with local-only entries
-            _entries = [...newEntries, ...localOnlyEntries];
+            // Remove any local entries that have matching server IDs (these are duplicates)
+            _entries
+                .removeWhere((localEntry) => serverIds.contains(localEntry.id));
+
+            // Also remove local UUID entries that are duplicates of server entries
+            // (same food item, calories, and timestamp within 30 seconds)
+            _entries.removeWhere((localEntry) {
+              return newEntries.any((serverEntry) {
+                final timeDiff = localEntry.timestamp
+                    .difference(serverEntry.timestamp)
+                    .abs();
+                final isSameFood = localEntry.foodItem.toLowerCase() ==
+                    serverEntry.foodItem.toLowerCase();
+                final isSameCalories =
+                    localEntry.calories == serverEntry.calories;
+                final isWithinTimeWindow = timeDiff.inSeconds <= 30;
+
+                // If it's a UUID (local entry) and matches a server entry, it's a duplicate
+                final isLocalUUID =
+                    localEntry.id.contains('-') && localEntry.id.length == 36;
+
+                return isLocalUUID &&
+                    isSameFood &&
+                    isSameCalories &&
+                    isWithinTimeWindow;
+              });
+            });
+
+            // Add all server entries
+            _entries.addAll(newEntries);
+
+            // Sort entries by timestamp (newest first)
+            _entries.sort((a, b) => b.timestamp.compareTo(a.timestamp));
 
             // Save to local storage
             await _saveEntries();
@@ -198,13 +222,7 @@ class CalorieRepository {
       return entryDate.isAtSameMomentAs(today);
     }).toList();
 
-    // Calculate totals
-    int totalCalories = 0;
-    double totalCarbs = 0;
-    double totalProtein = 0;
-    double totalFat = 0;
-
-    // Group entries by food item
+    // Group entries by food item for breakdown
     final Map<String, List<CalorieEntry>> entriesByFood = {};
     for (var entry in todayEntries) {
       if (!entriesByFood.containsKey(entry.foodItem)) {
@@ -218,10 +236,6 @@ class CalorieRepository {
     entriesByFood.forEach((foodItem, entries) {
       int totalFoodCalories = 0;
       for (var entry in entries) {
-        totalCalories += entry.calories;
-        totalCarbs += entry.carbs?.toDouble() ?? 0;
-        totalProtein += entry.protein?.toDouble() ?? 0;
-        totalFat += entry.fat?.toDouble() ?? 0;
         totalFoodCalories += entry.calories;
       }
 
@@ -236,7 +250,7 @@ class CalorieRepository {
     breakdown
         .sort((a, b) => (b['calories'] as int).compareTo(a['calories'] as int));
 
-    // Update the daily summary
+    // Update the daily summary (placeholder for future implementation)
   }
 
   // Fetch daily summary from server as a fallback
@@ -267,98 +281,9 @@ class CalorieRepository {
 
       // Process the summary data
       if (response != null && response['calorie_info'] != null) {
-        final calorieInfo = response['calorie_info'];
-
-        // Update the daily summary with the data from the server
+        // Future implementation: Update the daily summary with the data from the server
       }
     } catch (e) {}
-  }
-
-  // Helper method to fetch daily calories from server
-  Future<Map<String, dynamic>?> _fetchDailyCaloriesFromServer(
-      {bool forceRefresh = false}) async {
-    if (apiService == null) return null;
-
-    try {
-      // Get current user ID from Firebase Auth
-      final userId = apiService!.getCurrentUserId();
-
-      if (userId == null) {
-        return null;
-      }
-
-      // Try the summary endpoint
-      final summaryResponse = await apiService!.post('/calories/summary', {
-        'user_id': userId,
-        'period': 'daily',
-        'message':
-            'show me my daily calories', // Help the server determine the right query scope
-        'force_refresh': forceRefresh,
-      });
-
-      return summaryResponse;
-    } catch (e) {
-      return null;
-    }
-  }
-
-  // Helper method to convert items to breakdown list
-  List<Map<String, dynamic>> _getBreakdownFromItems(dynamic items) {
-    if (items == null) return [];
-
-    List<Map<String, dynamic>> breakdownList = [];
-
-    if (items is Map<String, dynamic>) {
-      breakdownList = items.entries
-          .map((e) => {
-                'item': e.key,
-                'calories': e.value is Map ? e.value['calories'] ?? 0 : e.value,
-                'count': e.value is Map ? e.value['count'] ?? 1 : 1,
-              })
-          .toList();
-    } else if (items is List) {
-      breakdownList = items.map((item) {
-        if (item is Map<String, dynamic>) {
-          return {
-            'item': item['item'] ?? 'Unknown',
-            'calories': item['calories'] ?? 0,
-            'count': item['count'] ?? 1,
-          };
-        }
-        return {'item': 'Unknown', 'calories': 0, 'count': 1};
-      }).toList();
-    }
-
-    // Sort by calories (highest first)
-    breakdownList
-        .sort((a, b) => (b['calories'] as int).compareTo(a['calories'] as int));
-
-    return breakdownList;
-  }
-
-  // Helper method to process breakdown list from server response
-  List<Map<String, dynamic>> _processBreakdownList(
-      List<dynamic> breakdownItems) {
-    if (breakdownItems.isEmpty) return [];
-
-    List<Map<String, dynamic>> result = [];
-
-    for (final item in breakdownItems) {
-      if (item is Map) {
-        // Handle different formats of breakdown items
-        final String foodItem = item['food_item'] ?? item['item'] ?? 'Unknown';
-        final int calories = _parseToInt(item['calories']);
-        final int count = _parseToInt(item['count'] ?? 1);
-
-        result.add({
-          'item': foodItem,
-          'calories': calories,
-          'count': count,
-        });
-      }
-    }
-
-    return result;
   }
 
   // Check if it's a new day since last load
@@ -405,6 +330,11 @@ class CalorieRepository {
   Future<List<CalorieEntry>> getCalorieEntries(
       {bool forceRefresh = false}) async {
     try {
+      print(
+          "CalorieRepository: getCalorieEntries called with forceRefresh: $forceRefresh");
+      print(
+          "CalorieRepository: Current cache has ${_entries.length} total entries");
+
       // Make sure entries are initialized
       await _initializeEntries();
 
@@ -412,6 +342,8 @@ class CalorieRepository {
       final userId = apiService?.getCurrentUserId();
 
       if (userId == null) {
+        print(
+            "CalorieRepository: No user ID available, returning cached entries");
         return List.from(_entries);
       }
 
@@ -458,6 +390,12 @@ class CalorieRepository {
   Future<List<CalorieEntry>> getCalorieEntriesForDate(DateTime date,
       {bool forceRefresh = false}) async {
     try {
+      final dateStr = date.toString().split(' ')[0]; // Just the date part
+      print(
+          "CalorieRepository: getCalorieEntriesForDate called for $dateStr, forceRefresh: $forceRefresh");
+      print(
+          "CalorieRepository: Current cache has ${_entries.length} total entries");
+
       // Make sure entries are initialized
       await _initializeEntries();
 
@@ -465,6 +403,8 @@ class CalorieRepository {
       final userId = apiService?.getCurrentUserId();
 
       if (userId == null) {
+        print(
+            "CalorieRepository: No user ID available, returning filtered cache entries");
         return _filterEntriesByDate(_entries, date);
       }
 
@@ -540,6 +480,14 @@ class CalorieRepository {
         return entryDate.isAtSameMomentAs(today);
       }).toList();
 
+      print(
+          "CalorieRepository: getDailyCalories - Today's entries (${todayEntries.length}):");
+      for (int i = 0; i < todayEntries.length; i++) {
+        final e = todayEntries[i];
+        print(
+            "  [$i] ${e.foodItem}: ${e.calories} cal, ID: ${e.id}, Time: ${e.timestamp}");
+      }
+
       // Calculate totals
       int totalCalories = 0;
       double totalCarbs = 0;
@@ -577,6 +525,13 @@ class CalorieRepository {
       // Sort by calories (highest first)
       breakdown.sort(
           (a, b) => (b['calories'] as int).compareTo(a['calories'] as int));
+
+      print("CalorieRepository: getDailyCalories - Calculated totals:");
+      print("  Total Calories: $totalCalories");
+      print("  Total Protein: $totalProtein");
+      print("  Total Carbs: $totalCarbs");
+      print("  Total Fat: $totalFat");
+      print("  Breakdown: $breakdown");
 
       return {
         'totalCalories': totalCalories,
@@ -730,6 +685,11 @@ class CalorieRepository {
   /// Adds a new calorie entry
   Future<bool> addCalorieEntry(CalorieEntry entry) async {
     try {
+      print(
+          "CalorieRepository: addCalorieEntry called for '${entry.foodItem}' with ${entry.calories} calories");
+      print(
+          "CalorieRepository: Entry ID: ${entry.id}, Protein: ${entry.protein}, Carbs: ${entry.carbs}, Fat: ${entry.fat}");
+
       // Make sure entries are initialized
       await _initializeEntries();
 
@@ -737,22 +697,46 @@ class CalorieRepository {
       final userId = apiService?.getCurrentUserId();
 
       if (userId == null) {
+        print("CalorieRepository: No user ID available, returning false");
         return false;
       }
 
-      // Add the entry to the in-memory cache
-      _entries.add(entry);
+      print(
+          "CalorieRepository: Current cache has ${_entries.length} entries before adding");
 
-      // Save to SQLite database
-      await _dbHelper.saveCalorieEntry(entry, userId);
+      // Enhanced duplicate check - look for exact matches and recent similar entries
+      final recentWindow =
+          Duration(seconds: 10); // 10 second window for duplicates
 
-      // Update the last cache update time
-      _lastCacheUpdate = DateTime.now();
+      final duplicates = _entries.where((e) {
+        final timeDiff = e.timestamp.difference(entry.timestamp).abs();
+        final isRecentEntry = timeDiff < recentWindow;
+        final isSameFoodAndCalories =
+            e.foodItem.toLowerCase() == entry.foodItem.toLowerCase() &&
+                e.calories == entry.calories;
 
-      // If we have an API service, try to send to server
+        return isRecentEntry && isSameFoodAndCalories;
+      }).toList();
+
+      if (duplicates.isNotEmpty) {
+        print(
+            "CalorieRepository: Duplicate entry detected! Found ${duplicates.length} similar entries:");
+        for (var existing in duplicates) {
+          print(
+              "  - Existing: ${existing.foodItem}, ${existing.calories} cal, ID: ${existing.id}, Protein: ${existing.protein}, Time: ${existing.timestamp}");
+        }
+        print(
+            "  - New entry: ${entry.foodItem}, ${entry.calories} cal, ID: ${entry.id}, Protein: ${entry.protein}, Time: ${entry.timestamp}");
+        print("CalorieRepository: Skipping duplicate entry addition");
+        return true; // Return true to avoid error state, but don't add duplicate
+      }
+
+      // If we have an API service, try to send to server FIRST before adding locally
+      String? serverId;
       if (apiService != null) {
         try {
-          final response = await apiService!.post('/calories/add', {
+          print("CalorieRepository: Sending entry to server first...");
+          final response = await apiService!.post('/calories/entries/add', {
             'user_id': userId,
             'food_item': entry.foodItem,
             'calories': entry.calories,
@@ -764,13 +748,32 @@ class CalorieRepository {
             'timestamp': entry.timestamp.toIso8601String(),
           });
 
-          // If the server responds with an ID, update the entry
+          print("CalorieRepository: Server response: $response");
+
+          // Check if server detected a duplicate
+          if (response != null && response['duplicate'] == true) {
+            print(
+                "CalorieRepository: Server detected duplicate, skipping local add");
+            return true; // Server already has this entry
+          }
+
+          // If the server responds with an ID, use it for the entry
           if (response != null &&
               response['success'] == true &&
               response['id'] != null) {
-            // Create a new entry with the server ID instead of modifying the final field
-            final updatedEntry = CalorieEntry(
-              id: response['id'].toString(),
+            serverId = response['id'].toString();
+            print("CalorieRepository: Server assigned ID $serverId to entry");
+          }
+        } catch (e) {
+          print("CalorieRepository: Server error while adding entry: $e");
+          // Continue with local storage even if server fails
+        }
+      }
+
+      // Create the final entry with server ID if available
+      final finalEntry = serverId != null
+          ? CalorieEntry(
+              id: serverId, // Use server ID as the primary ID
               foodItem: entry.foodItem,
               calories: entry.calories,
               protein: entry.protein,
@@ -779,24 +782,25 @@ class CalorieRepository {
               quantity: entry.quantity,
               unit: entry.unit,
               timestamp: entry.timestamp,
-            );
+            )
+          : entry; // Use original entry if no server ID
 
-            // Update the entry in the database and in the cache
-            await _dbHelper.updateCalorieEntry(updatedEntry, userId);
+      // Add the entry to the in-memory cache
+      _entries.add(finalEntry);
+      print(
+          "CalorieRepository: Added entry to cache with ID ${finalEntry.id}, new cache size: ${_entries.length}");
 
-            // Update in-memory cache
-            final entryIndex = _entries.indexWhere((e) => e.id == entry.id);
-            if (entryIndex >= 0) {
-              _entries[entryIndex] = updatedEntry;
-            }
-          }
-        } catch (e) {
-          // Ignore server errors, entry is already saved locally
-        }
-      }
+      // Save to SQLite database
+      await _dbHelper.saveCalorieEntry(finalEntry, userId);
+      print("CalorieRepository: Saved entry to SQLite database");
 
+      // Update the last cache update time
+      _lastCacheUpdate = DateTime.now();
+
+      print("CalorieRepository: addCalorieEntry completed successfully");
       return true;
     } catch (e) {
+      print("CalorieRepository: Error in addCalorieEntry: $e");
       return false;
     }
   }
@@ -878,6 +882,8 @@ class CalorieRepository {
 
   /// Deletes a calorie entry
   Future<bool> deleteCalorieEntry(String? id) async {
+    print("CalorieRepository: deleteCalorieEntry called with ID: $id");
+
     try {
       // Make sure entries are initialized
       await _initializeEntries();
@@ -885,39 +891,82 @@ class CalorieRepository {
       // Get current user ID
       final userId = apiService?.getCurrentUserId();
 
-      if (userId == null || id == null) {
+      if (userId == null) {
+        print("CalorieRepository: deleteCalorieEntry failed - no user ID");
+        return false;
+      }
+
+      if (id == null) {
+        print(
+            "CalorieRepository: deleteCalorieEntry failed - no entry ID provided");
         return false;
       }
 
       // Find the entry in the in-memory cache
       final index = _entries.indexWhere((e) => e.id == id);
       if (index < 0) {
+        print(
+            "CalorieRepository: deleteCalorieEntry failed - entry not found in cache");
         return false;
       }
 
-      // Remove from in-memory cache
+      final entryToDelete = _entries[index];
+      print(
+          "CalorieRepository: Found entry to delete: ${entryToDelete.foodItem} (${entryToDelete.calories} cal)");
+
+      // Remove from in-memory cache first
       _entries.removeAt(index);
+      print(
+          "CalorieRepository: Removed entry from in-memory cache. Cache now has ${_entries.length} entries");
 
-      // Remove from SQLite database
-      await _dbHelper.deleteCalorieEntry(id);
+      try {
+        // Remove from SQLite database
+        await _dbHelper.deleteCalorieEntry(id);
+        print(
+            "CalorieRepository: Successfully deleted entry from local database");
+      } catch (e) {
+        print("CalorieRepository: Error deleting from local database: $e");
+        // Re-add to cache if local delete failed
+        _entries.insert(index, entryToDelete);
+        return false;
+      }
 
-      // Update the last cache update time
+      // Update the last cache update time and force cache invalidation
       _lastCacheUpdate = DateTime.now();
 
       // If we have an API service, try to send delete request to server
       if (apiService != null) {
         try {
-          await apiService!.post('/calories/delete', {
+          print("CalorieRepository: Sending delete request to server");
+
+          // Check if we have a server ID for this entry
+          final serverId = await _dbHelper.getCalorieEntryServerId(id);
+          final entryIdToDelete = serverId ?? id;
+
+          print(
+              "CalorieRepository: Using entry ID for server delete: $entryIdToDelete ${serverId != null ? '(server ID)' : '(local ID)'}");
+
+          await apiService!.post('/calories/entries/delete', {
             'user_id': userId,
-            'entry_id': id,
+            'entry_id': entryIdToDelete,
           });
+          print("CalorieRepository: Successfully deleted entry from server");
         } catch (e) {
-          // Ignore server errors, entry is already deleted locally
+          print("CalorieRepository: Server delete failed (ignoring): $e");
+          // We don't re-add to cache for server errors since local delete succeeded
         }
+      } else {
+        print(
+            "CalorieRepository: No API service available, skipping server delete");
       }
 
+      // Force refresh from server on next access to ensure consistency
+      _lastCacheUpdate = null;
+
+      print("CalorieRepository: deleteCalorieEntry completed successfully");
       return true;
     } catch (e) {
+      print("CalorieRepository: deleteCalorieEntry failed with exception: $e");
       return false;
     }
   }

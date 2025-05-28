@@ -979,6 +979,9 @@ class DatabaseHelper {
 
   /// Convert a CalorieEntry object to a Map for database storage
   Map<String, dynamic> _calorieEntryToMap(CalorieEntry entry, String userId) {
+    // Determine if this entry has a server ID (integer) or local ID (UUID)
+    final bool hasServerId = RegExp(r'^\d+$').hasMatch(entry.id);
+
     return {
       'id': entry.id,
       'user_id': userId,
@@ -990,8 +993,10 @@ class DatabaseHelper {
       'quantity': entry.quantity,
       'unit': entry.unit,
       'timestamp': entry.timestamp.millisecondsSinceEpoch,
-      'synced': 0, // Default to unsynced
-      'server_id': entry.id, // Use local ID as server ID initially
+      'synced': hasServerId ? 1 : 0, // Mark as synced if it has a server ID
+      'server_id': hasServerId
+          ? entry.id
+          : null, // Only set server_id if it's an integer ID
     };
   }
 
@@ -1007,6 +1012,44 @@ class DatabaseHelper {
       quantity: map['quantity'] as double,
       unit: map['unit'] as String,
       timestamp: DateTime.fromMillisecondsSinceEpoch(map['timestamp'] as int),
+    );
+  }
+
+  /// Get the server ID for a calorie entry by its local ID
+  Future<String?> getCalorieEntryServerId(String localId) async {
+    sqflite.Database db = await database;
+
+    List<Map<String, dynamic>> maps = await db.query(
+      'calorie_entries',
+      columns: ['server_id'],
+      where: 'id = ?',
+      whereArgs: [localId],
+    );
+
+    if (maps.isNotEmpty && maps.first['server_id'] != null) {
+      final serverId = maps.first['server_id'] as String;
+      // Only return server ID if it's different from local ID and looks like an integer
+      if (serverId != localId && RegExp(r'^\d+$').hasMatch(serverId)) {
+        return serverId;
+      }
+    }
+
+    return null;
+  }
+
+  /// Update the server ID for a calorie entry
+  Future<void> updateCalorieEntryServerId(
+      String localId, String serverId) async {
+    sqflite.Database db = await database;
+
+    await db.update(
+      'calorie_entries',
+      {
+        'server_id': serverId,
+        'synced': 1, // Mark as synced since we got a server ID
+      },
+      where: 'id = ?',
+      whereArgs: [localId],
     );
   }
 }

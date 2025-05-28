@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'dart:async';
 import '../../../blocs/preferences/preferences_bloc.dart';
 import '../../../blocs/calorie/calorie_bloc.dart';
 import '../../../blocs/calorie/calorie_state.dart';
@@ -11,7 +12,6 @@ import '../../../data/repositories/calorie_repository.dart';
 import '../../../utils/nutrition_calculator.dart';
 import '../../widgets/common/app_background.dart';
 import '../../widgets/calorie/index.dart';
-import '../../widgets/common/time_frame_selector.dart';
 
 class CalorieDetailsScreen extends StatefulWidget {
   const CalorieDetailsScreen({super.key});
@@ -26,13 +26,15 @@ class _CalorieDetailsScreenState extends State<CalorieDetailsScreen>
   late CalorieRepository _repository;
   List<CalorieEntry> _entries = [];
   bool _isLoading = true;
-  bool _hasLoadedInitialData = false;
   bool _justCompletedOnboarding = true; // Add this flag
   String _selectedTimeFrame = 'Today';
-  final List<String> _timeFrames = ['Today', 'Week', 'Month'];
 
   // Add a flag to prevent multiple didChangeDependencies calls
   bool _isInitialized = false;
+
+  // Debouncing for calorie entry loading
+  Timer? _loadEntriesDebouncer;
+  DateTime? _lastLoadEntriesCall;
 
   // Selected date for the calendar view
   DateTime _selectedDate = DateTime.now();
@@ -40,12 +42,6 @@ class _CalorieDetailsScreenState extends State<CalorieDetailsScreen>
   // Maximum number of entries to load at once to prevent memory issues
   final int _maxEntriesToLoad =
       200; // Increased from 50 to 200 to ensure historical entries are loaded
-
-  // Maximum number of entries to display in the chart
-  final int _maxChartEntries = 15; // Reduced from 30 to 15
-
-  // Map to store expanded state of each day in history tab
-  final Map<String, bool> _expandedDays = {};
 
   // State variables to store fetched totals for Week/Month
   int? _fetchedTotalCalories;
@@ -60,8 +56,13 @@ class _CalorieDetailsScreenState extends State<CalorieDetailsScreen>
 
     // Listen for tab changes to refresh data when switching to history tab
     _tabController.addListener(() {
+      print(
+          "CalorieDetailsScreen: Tab controller listener triggered, current index: ${_tabController.index}");
       if (_tabController.index == 1) {
-        _loadCalorieEntries(forceRefresh: true);
+        print(
+            "CalorieDetailsScreen: Tab switched to history tab (index 1), calling _loadCalorieEntries");
+        // Use debounced loading when switching to history tab
+        _loadCalorieEntries(forceRefresh: false);
       }
     });
 
@@ -88,7 +89,6 @@ class _CalorieDetailsScreenState extends State<CalorieDetailsScreen>
     if (!_isInitialized) {
       print("CalorieDetailsScreen: Initial data load triggered");
       _isInitialized = true;
-      _hasLoadedInitialData = true;
 
       // Get the repository from context
       _repository = context.read<CalorieRepository>();
@@ -120,7 +120,7 @@ class _CalorieDetailsScreenState extends State<CalorieDetailsScreen>
         Future.delayed(const Duration(milliseconds: 300), () {
           if (mounted && _isLoading) {
             print("CalorieDetailsScreen: Loading entries after delay");
-            _loadCalorieEntries(forceRefresh: true);
+            _loadCalorieEntries(forceRefresh: false);
           }
         });
       }
@@ -133,6 +133,7 @@ class _CalorieDetailsScreenState extends State<CalorieDetailsScreen>
   @override
   void dispose() {
     _tabController.dispose();
+    _loadEntriesDebouncer?.cancel();
     super.dispose();
   }
 
@@ -407,7 +408,8 @@ class _CalorieDetailsScreenState extends State<CalorieDetailsScreen>
 
         // Use either the entries from the state or the passed entries parameter
         final List<CalorieEntry> allEntries = state.entries.isNotEmpty
-            ? List<CalorieEntry>.from(state.entries)
+            ? state
+                .entries // No conversion needed since entries is now List<CalorieEntry>
             : entries;
 
         return SingleChildScrollView(
@@ -460,7 +462,7 @@ class _CalorieDetailsScreenState extends State<CalorieDetailsScreen>
                       status: nutritionAnalysis.isCalorieOnTarget == true
                           ? NutritionStatus.good
                           : NutritionStatus.warning,
-                      percentage: nutritionAnalysis.caloriePercentage ?? 0,
+                      percentage: nutritionAnalysis.caloriePercentage,
                     ),
                     NutritionGoalCard(
                       title: 'Protein Goal',
@@ -468,7 +470,7 @@ class _CalorieDetailsScreenState extends State<CalorieDetailsScreen>
                       status: nutritionAnalysis.isProteinOnTarget == true
                           ? NutritionStatus.good
                           : NutritionStatus.warning,
-                      percentage: nutritionAnalysis.proteinPercentage ?? 0,
+                      percentage: nutritionAnalysis.proteinPercentage,
                     ),
                     NutritionGoalCard(
                       title: 'Carbs Goal',
@@ -476,7 +478,7 @@ class _CalorieDetailsScreenState extends State<CalorieDetailsScreen>
                       status: nutritionAnalysis.isCarbOnTarget == true
                           ? NutritionStatus.good
                           : NutritionStatus.warning,
-                      percentage: nutritionAnalysis.carbPercentage ?? 0,
+                      percentage: nutritionAnalysis.carbPercentage,
                     ),
                     NutritionGoalCard(
                       title: 'Fat Goal',
@@ -484,7 +486,7 @@ class _CalorieDetailsScreenState extends State<CalorieDetailsScreen>
                       status: nutritionAnalysis.isFatOnTarget == true
                           ? NutritionStatus.good
                           : NutritionStatus.warning,
-                      percentage: nutritionAnalysis.fatPercentage ?? 0,
+                      percentage: nutritionAnalysis.fatPercentage,
                     ),
                   ],
                 ),
@@ -779,10 +781,6 @@ class _CalorieDetailsScreenState extends State<CalorieDetailsScreen>
         // Get the entry ID from the entry object
         final entryId = entry.id;
 
-        if (entryId == null) {
-          throw Exception('Entry ID is missing');
-        }
-
         // Parse the food item to extract quantity if present
         final RegExp quantityRegex = RegExp(r'^(\d+(\.\d+)?)\s+(.+)$');
         final match = quantityRegex.firstMatch(result);
@@ -828,13 +826,13 @@ class _CalorieDetailsScreenState extends State<CalorieDetailsScreen>
         // Wait a moment to allow the server operation to complete
         await Future.delayed(const Duration(milliseconds: 500));
 
-        // Refresh the UI with force refresh to ensure we get the latest data
-        await _loadCalorieEntriesWithForceRefresh();
+        // Refresh the UI without force refresh since local cache is already updated
+        await _loadCalorieEntries(forceRefresh: false);
 
         // Also refresh the daily calorie data to update the summary
         context
             .read<CalorieBloc>()
-            .add(const LoadDailyCalories(forceRefresh: true));
+            .add(const LoadDailyCalories(forceRefresh: false));
 
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Entry updated successfully')),
@@ -870,7 +868,14 @@ class _CalorieDetailsScreenState extends State<CalorieDetailsScreen>
       ),
     );
 
-    if (confirmed == true) {
+    if (confirmed == true && mounted) {
+      // Prevent multiple deletion operations
+      if (_isLoading) {
+        print(
+            "CalorieDetailsScreen: Delete operation already in progress, skipping");
+        return;
+      }
+
       setState(() {
         _isLoading = true;
       });
@@ -879,40 +884,51 @@ class _CalorieDetailsScreenState extends State<CalorieDetailsScreen>
         // Get the entry ID from the entry object
         final entryId = entry.id;
 
-        // Print debug information
+        print(
+            "CalorieDetailsScreen: Attempting to delete entry with ID: $entryId");
 
-        if (entryId == null) {
-          throw Exception('Entry ID is missing');
-        }
-
-        // Dispatch the delete event to the CalorieBloc
-        context.read<CalorieBloc>().add(DeleteCalorieEntry(entryId));
-
-        // Remove the entry from the local list immediately for better UX
+        // Optimistically remove from local list for immediate UI feedback
         setState(() {
           _entries.removeWhere((e) => e.id == entryId);
         });
 
-        // Wait a moment to allow the server operation to complete
-        await Future.delayed(const Duration(milliseconds: 500));
+        // Dispatch the delete event to the CalorieBloc and wait for completion
+        context.read<CalorieBloc>().add(DeleteCalorieEntry(entryId));
 
-        // Force refresh from server to ensure we have the latest data
-        await _loadCalorieEntriesWithForceRefresh();
+        // Wait for the bloc operation to complete
+        await Future.delayed(const Duration(milliseconds: 800));
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Entry deleted successfully')),
-        );
+        // Check if widget is still mounted before continuing
+        if (!mounted) return;
+
+        // The bloc delete operation already reloaded daily data,
+        // so we just need to update our local entries without forcing another refresh
+        await _loadCalorieEntries(forceRefresh: false);
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Entry deleted successfully')),
+          );
+        }
       } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error deleting entry: $e')),
-        );
+        print("CalorieDetailsScreen: Error deleting entry: $e");
 
-        // Refresh entries anyway to ensure UI is in sync with server
-        await _loadCalorieEntriesWithForceRefresh();
+        // Only show error and refresh if widget is still mounted
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error deleting entry: $e')),
+          );
+
+          // Just sync the UI with the current state, don't force server refresh
+          await _loadCalorieEntries(forceRefresh: false);
+        }
       } finally {
-        setState(() {
-          _isLoading = false;
-        });
+        // Only update state if widget is still mounted
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
       }
     }
   }
@@ -921,42 +937,92 @@ class _CalorieDetailsScreenState extends State<CalorieDetailsScreen>
     print(
         "CalorieDetailsScreen: _loadCalorieEntries called with forceRefresh=$forceRefresh");
 
-    // Prevent duplicate loading operations but don't return if already loading
-    // since we need to ensure data loads
-    if (!_isLoading) {
-      setState(() => _isLoading = true);
+    // Implement debouncing to prevent duplicate calls - even for forced refreshes
+    final now = DateTime.now();
+    if (_lastLoadEntriesCall != null &&
+        now.difference(_lastLoadEntriesCall!).inMilliseconds < 1000) {
+      print(
+          "CalorieDetailsScreen: Skipping _loadCalorieEntries due to debouncing (${now.difference(_lastLoadEntriesCall!).inMilliseconds}ms since last call)");
+      return;
     }
+    _lastLoadEntriesCall = now;
+
+    // Cancel any existing debouncer
+    _loadEntriesDebouncer?.cancel();
+
+    // Always execute immediately for this version to see what's happening
+    await _performLoadCalorieEntries(forceRefresh: forceRefresh);
+  }
+
+  Future<void> _performLoadCalorieEntries({bool forceRefresh = false}) async {
+    print(
+        "CalorieDetailsScreen: _performLoadCalorieEntries called with forceRefresh=$forceRefresh");
+
+    // Check if widget is still mounted before starting
+    if (!mounted) {
+      print(
+          "CalorieDetailsScreen: Widget not mounted, aborting load operation");
+      return;
+    }
+
+    // Prevent duplicate loading operations
+    if (_isLoading && !forceRefresh) {
+      print("CalorieDetailsScreen: Already loading, skipping duplicate call");
+      return;
+    }
+
+    setState(() => _isLoading = true);
 
     try {
       print(
           "CalorieDetailsScreen: Calling repository.getCalorieEntries(forceRefresh=$forceRefresh)");
-      // Only get entries from repository without calculating totals
-      final allEntries =
-          await _repository.getCalorieEntries(forceRefresh: forceRefresh);
+
+      // Only get entries from repository with timeout protection
+      final allEntries = await _repository
+          .getCalorieEntries(forceRefresh: forceRefresh)
+          .timeout(const Duration(seconds: 30), onTimeout: () {
+        throw TimeoutException(
+            'Load calorie entries timed out after 30 seconds');
+      });
+
       print(
           "CalorieDetailsScreen: Retrieved ${allEntries.length} entries from repository");
 
+      // Check if widget is still mounted after async operation
+      if (!mounted) {
+        print("CalorieDetailsScreen: Widget unmounted during load, aborting");
+        return;
+      }
+
+      // Sort entries by timestamp (newest first)
       allEntries.sort((a, b) => b.timestamp.compareTo(a.timestamp));
 
-      // Deduplicate
+      // Deduplicate entries to prevent memory issues and UI glitches
       final uniqueEntries = <CalorieEntry>[];
       final seenItems = <String>{};
+
       for (final entry in allEntries) {
+        // Use a more robust key that includes timestamp milliseconds
         final key =
-            '${entry.foodItem}_${entry.timestamp.millisecondsSinceEpoch}';
+            '${entry.foodItem}_${entry.timestamp.millisecondsSinceEpoch}_${entry.calories}';
         if (!seenItems.contains(key)) {
           seenItems.add(key);
           uniqueEntries.add(entry);
+        } else {
+          print(
+              "CalorieDetailsScreen: Filtered duplicate entry: ${entry.foodItem}");
         }
       }
+
       print(
           "CalorieDetailsScreen: After deduplication, got ${uniqueEntries.length} unique entries");
 
-      // Limit the number
+      // Limit the number to prevent memory issues
       final limitedEntries = uniqueEntries.take(_maxEntriesToLoad).toList();
       print(
           "CalorieDetailsScreen: Limited to ${limitedEntries.length} entries");
 
+      // Final mounted check before updating state
       if (mounted) {
         setState(() {
           _entries = limitedEntries;
@@ -964,7 +1030,7 @@ class _CalorieDetailsScreenState extends State<CalorieDetailsScreen>
         });
 
         // Only update the CalorieBloc if we've refreshed the data
-        if (forceRefresh) {
+        if (forceRefresh && mounted) {
           print(
               "CalorieDetailsScreen: Dispatching LoadDailyCalories event to bloc due to forceRefresh=true");
           context
@@ -981,22 +1047,6 @@ class _CalorieDetailsScreenState extends State<CalorieDetailsScreen>
         );
       }
     }
-  }
-
-  // -------------------------------
-  //  BUILD TIME FRAME SELECTOR
-  // -------------------------------
-  Widget _buildTimeFrameSelector() {
-    return TimeFrameSelector(
-      timeFrames: _timeFrames,
-      selectedTimeFrame: _selectedTimeFrame,
-      onTimeFrameChanged: (timeFrame) {
-        setState(() {
-          _selectedTimeFrame = timeFrame;
-        });
-        _handleTimeFrameChange(timeFrame);
-      },
-    );
   }
 
   // -------------------------------
@@ -1052,15 +1102,15 @@ class _CalorieDetailsScreenState extends State<CalorieDetailsScreen>
         filteredEntries = List.from(_entries);
     }
 
-    // Check for March 28 entries specifically
+    // Debug: Check for March 28 entries specifically (can be removed in production)
     final march28Entries = filteredEntries
         .where(
             (entry) => entry.timestamp.month == 3 && entry.timestamp.day == 28)
         .toList();
 
     if (march28Entries.isNotEmpty) {
-      for (var entry in march28Entries) {}
-    } else {}
+      print("Found ${march28Entries.length} entries for March 28");
+    }
 
     return filteredEntries;
   }
@@ -1079,46 +1129,6 @@ class _CalorieDetailsScreenState extends State<CalorieDetailsScreen>
 
   double _getTotalFat(List<CalorieEntry> entries) =>
       entries.fold(0.0, (sum, e) => sum + (e.fat?.toDouble() ?? 0.0));
-
-  // -------------------------------
-  //  TIME FRAME CHANGES
-  // -------------------------------
-  void _handleTimeFrameChange(String timeFrame) async {
-    if (_isLoading || _selectedTimeFrame == timeFrame) return;
-
-    setState(() {
-      _selectedTimeFrame = timeFrame;
-      _isLoading = true;
-      _fetchedTotalCalories = null;
-      _fetchedTotalProtein = null;
-      _fetchedTotalCarbs = null;
-      _fetchedTotalFat = null;
-    });
-
-    try {
-      switch (timeFrame) {
-        case 'Today':
-          context
-              .read<CalorieBloc>()
-              .add(const LoadDailyCalories(forceRefresh: true));
-          break;
-        case 'Week':
-          context.read<CalorieBloc>().add(const LoadWeeklyCalories());
-          break;
-        case 'Month':
-          final data = await _repository.getMonthlyCalories(forceRefresh: true);
-          _updateFetchedData(data);
-          break;
-      }
-    } catch (e) {
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
-  }
 
   // -------------------------------
   //  REFRESH FROM SERVER
@@ -1159,11 +1169,6 @@ class _CalorieDetailsScreenState extends State<CalorieDetailsScreen>
 
   // -------------------------------
   //  LOAD CALORIE ENTRIES
-  // -------------------------------
-  Future<void> _loadCalorieEntriesWithForceRefresh() async {
-    await _loadCalorieEntries(forceRefresh: true);
-  }
-
   // Add a new calorie entry
   Future<void> _addEntry() async {
     // Create controllers for the form fields
@@ -1328,8 +1333,8 @@ class _CalorieDetailsScreenState extends State<CalorieDetailsScreen>
         final success = await _repository.addCalorieEntry(entry);
 
         if (success) {
-          // Force refresh to get the latest data including server-generated ID
-          await _loadCalorieEntriesWithForceRefresh();
+          // Refresh to get the latest data including server-generated ID
+          await _loadCalorieEntries(forceRefresh: true);
 
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Entry added successfully')),
@@ -1349,14 +1354,5 @@ class _CalorieDetailsScreenState extends State<CalorieDetailsScreen>
         });
       }
     }
-  }
-
-  void _updateFetchedData(Map<String, dynamic> data) {
-    setState(() {
-      _fetchedTotalCalories = data['total_calories'];
-      _fetchedTotalProtein = data['total_protein'];
-      _fetchedTotalCarbs = data['total_carbs'];
-      _fetchedTotalFat = data['total_fat'];
-    });
   }
 }

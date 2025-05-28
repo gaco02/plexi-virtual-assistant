@@ -57,15 +57,20 @@ class CalorieBloc extends Bloc<CalorieEvent, CalorieState>
     LoadDailyCalories event,
     Emitter<CalorieState> emit,
   ) async {
+    print(
+        "CalorieBloc: _onLoadDaily called with forceRefresh: ${event.forceRefresh}");
+
     // Debounce daily loads - prevent multiple simultaneous requests
     final now = DateTime.now();
     if (_isLoadingDaily ||
         (_lastDailyLoad != null &&
             now.difference(_lastDailyLoad!).inMilliseconds < 500)) {
-      print("CalorieBloc: Skipping daily load - too soon after previous load");
+      print(
+          "CalorieBloc: Skipping daily load - too soon after previous load (${_lastDailyLoad != null ? now.difference(_lastDailyLoad!).inMilliseconds : 'N/A'}ms ago)");
       return;
     }
 
+    print("CalorieBloc: Processing daily load event");
     _isLoadingDaily = true;
     _lastDailyLoad = now;
 
@@ -73,6 +78,10 @@ class CalorieBloc extends Bloc<CalorieEvent, CalorieState>
       // Fetch daily calories
       final dailyData =
           await _repository.getDailyCalories(forceRefresh: event.forceRefresh);
+
+      print("CalorieBloc: Received daily data from repository: $dailyData");
+      print(
+          "CalorieBloc: Daily data totalCalories: ${dailyData['totalCalories']}");
 
       // Check if daily data is empty
       if (dailyData.isEmpty || dailyData['totalCalories'] == null) {
@@ -137,11 +146,16 @@ class CalorieBloc extends Bloc<CalorieEvent, CalorieState>
         breakdown: newBreakdown,
         nutritionPlan: nutritionPlan,
       ));
+
+      print("CalorieBloc: _onLoadDaily completed successfully");
     } catch (e) {
+      print("CalorieBloc: _onLoadDaily failed with error: $e");
       emit(state.copyWith(
           status: CalorieStatus.error, errorMessage: e.toString()));
     } finally {
       _isLoadingDaily = false;
+      print(
+          "CalorieBloc: _onLoadDaily finally block - _isLoadingDaily set to false");
     }
   }
 
@@ -334,7 +348,8 @@ class CalorieBloc extends Bloc<CalorieEvent, CalorieState>
       final double totalProtein = _parseToDouble(dailyData['totalProtein']);
       final double totalFat = _parseToDouble(dailyData['totalFat']);
       final List<dynamic> breakdownList = dailyData['breakdown'] ?? [];
-      final List<dynamic> entries = dailyData['entries'] ?? [];
+      final List<CalorieEntry> entries =
+          _convertMapEntriesToCalorieEntries(dailyData['entries']);
 
       emit(state.copyWith(
         status: CalorieStatus.loaded,
@@ -358,16 +373,26 @@ class CalorieBloc extends Bloc<CalorieEvent, CalorieState>
     Emitter<CalorieState> emit,
   ) async {
     try {
+      print("CalorieBloc: Starting delete operation for entry ID: ${event.id}");
+
+      // Emit loading state
       emit(state.copyWith(status: CalorieStatus.loading));
 
       // Delete the entry using the repository
       final success = await _repository.deleteCalorieEntry(event.id);
 
       if (!success) {
-        throw Exception('Failed to delete calorie entry');
+        throw Exception('Failed to delete calorie entry with ID: ${event.id}');
       }
 
-      // Reload daily data
+      print("CalorieBloc: Successfully deleted entry, reloading daily data");
+
+      // Add a small delay to ensure server state is consistent
+      await Future.delayed(const Duration(milliseconds: 200));
+
+      // Force a fresh reload from both local database and server to ensure consistency
+      _repository
+          .clearCache(); // Clear the repository cache to force fresh data
       final dailyData = await _repository.getDailyCalories(forceRefresh: true);
 
       // Extract values with proper type conversion
@@ -376,7 +401,11 @@ class CalorieBloc extends Bloc<CalorieEvent, CalorieState>
       final double totalProtein = _parseToDouble(dailyData['totalProtein']);
       final double totalFat = _parseToDouble(dailyData['totalFat']);
       final List<dynamic> breakdownList = dailyData['breakdown'] ?? [];
-      final List<dynamic> entries = dailyData['entries'] ?? [];
+      final List<CalorieEntry> entries =
+          _convertMapEntriesToCalorieEntries(dailyData['entries']);
+
+      print(
+          "CalorieBloc: Updated daily totals after delete - Calories: $totalCalories, Entries: ${entries.length}");
 
       emit(state.copyWith(
         status: CalorieStatus.loaded,
@@ -387,7 +416,10 @@ class CalorieBloc extends Bloc<CalorieEvent, CalorieState>
         breakdown: breakdownList,
         entries: entries,
       ));
+
+      print("CalorieBloc: Delete operation completed successfully");
     } catch (e) {
+      print("CalorieBloc: Error during delete operation: $e");
       emit(state.copyWith(
         status: CalorieStatus.error,
         errorMessage: 'Failed to delete calorie entry: $e',
@@ -425,6 +457,56 @@ class CalorieBloc extends Bloc<CalorieEvent, CalorieState>
     }
 
     return 0.0;
+  }
+
+  // Helper method to convert raw Map entries to CalorieEntry objects
+  List<CalorieEntry> _convertMapEntriesToCalorieEntries(
+      List<dynamic>? rawEntries) {
+    if (rawEntries == null || rawEntries.isEmpty) {
+      return [];
+    }
+
+    return rawEntries.map<CalorieEntry>((entry) {
+      if (entry is CalorieEntry) {
+        return entry;
+      } else if (entry is Map<String, dynamic>) {
+        try {
+          return CalorieEntry.fromMap(entry);
+        } catch (e) {
+          print("CalorieBloc: Error converting Map to CalorieEntry: $e");
+          print("CalorieBloc: Problematic entry: $entry");
+          // Create a fallback CalorieEntry with minimal data
+          return CalorieEntry(
+            id: entry['id']?.toString() ?? 'unknown',
+            foodItem: entry['food_item']?.toString() ?? 'Unknown food',
+            calories: _parseToInt(entry['calories']),
+            protein:
+                entry['protein'] != null ? _parseToInt(entry['protein']) : null,
+            carbs: entry['carbs'] != null ? _parseToInt(entry['carbs']) : null,
+            fat: entry['fat'] != null ? _parseToInt(entry['fat']) : null,
+            quantity: entry['quantity'] != null
+                ? _parseToDouble(entry['quantity'])
+                : 1.0,
+            unit: entry['unit']?.toString() ?? 'serving',
+            timestamp: entry['timestamp'] != null
+                ? DateTime.tryParse(entry['timestamp'].toString()) ??
+                    DateTime.now()
+                : DateTime.now(),
+          );
+        }
+      } else {
+        print("CalorieBloc: Unexpected entry type: ${entry.runtimeType}");
+        // Create a fallback CalorieEntry
+        return CalorieEntry(
+          id: 'unknown',
+          foodItem: 'Unknown food',
+          calories: 0,
+          quantity: 1.0,
+          unit: 'serving',
+          timestamp: DateTime.now(),
+        );
+      }
+    }).toList();
   }
 
   // Add this method to handle weekly data loading
