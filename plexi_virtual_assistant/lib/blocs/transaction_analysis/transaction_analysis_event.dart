@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import '../../data/models/transaction_analysis.dart';
 
 abstract class TransactionAnalysisEvent extends Equatable {
   const TransactionAnalysisEvent();
@@ -10,11 +11,16 @@ abstract class TransactionAnalysisEvent extends Equatable {
 class LoadTransactionAnalysis extends TransactionAnalysisEvent {
   final String? month;
   final bool forceRefresh;
+  final bool preferLocal; // New flag to prefer local data
 
-  const LoadTransactionAnalysis({this.month, this.forceRefresh = false});
+  const LoadTransactionAnalysis({
+    this.month,
+    this.forceRefresh = false,
+    this.preferLocal = true, // Default to preferring local data
+  });
 
   @override
-  List<Object?> get props => [month, forceRefresh];
+  List<Object?> get props => [month, forceRefresh, preferLocal];
 }
 
 class LoadTransactionHistory extends TransactionAnalysisEvent {
@@ -77,4 +83,18 @@ class ManualRefreshAnalysis extends TransactionAnalysisEvent {
 
   @override
   List<Object?> get props => [month, forceRefresh];
+}
+
+// Add a new event for quick budget updates from chat
+class QuickBudgetUpdate extends TransactionAnalysisEvent {
+  final TransactionAllocation newActual;
+  final bool fromChat;
+
+  const QuickBudgetUpdate({
+    required this.newActual,
+    this.fromChat = false,
+  });
+
+  @override
+  List<Object?> get props => [newActual, fromChat];
 }

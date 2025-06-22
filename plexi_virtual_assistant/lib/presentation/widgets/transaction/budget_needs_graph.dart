@@ -4,6 +4,7 @@ import '../../../data/models/transaction_analysis.dart';
 import '../../../utils/formatting_utils.dart';
 import '../../../blocs/transaction_analysis/transaction_analysis_bloc.dart';
 import '../../../blocs/transaction_analysis/transaction_analysis_event.dart';
+import '../../../blocs/transaction_analysis/transaction_analysis_state.dart';
 
 class BudgetGraphWidget extends StatefulWidget {
   final TransactionAllocation actual;
@@ -20,22 +21,20 @@ class BudgetGraphWidget extends StatefulWidget {
 }
 
 class _BudgetGraphWidgetState extends State<BudgetGraphWidget> {
-  // Keep track of previous values for comparison
-  late TransactionAllocation _previousActual;
   String _cacheKey = '';
-  bool _initialRefreshDone = false;
-  bool _hasNewTransactions = false;
+
+  // Optimistic update state
+  TransactionAllocation? _optimisticActual;
+  DateTime? _lastOptimisticUpdate;
 
   @override
   void initState() {
     super.initState();
-    _previousActual = widget.actual;
     _generateCacheKey();
 
     // Wait for first frame to be rendered before requesting data
     // This prevents UI jank during initial load
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _initialRefreshDone = true;
       // Only trigger initial refresh if we don't have data
       if (_isDataEmpty()) {
         _refreshDataIfNeeded();
@@ -45,9 +44,26 @@ class _BudgetGraphWidgetState extends State<BudgetGraphWidget> {
 
   // Check if we have empty data
   bool _isDataEmpty() {
-    return widget.actual.needs <= 0 &&
-        widget.actual.wants <= 0 &&
-        widget.actual.savings <= 0;
+    final actualToCheck = _getDisplayActual();
+    return actualToCheck.needs <= 0 &&
+        actualToCheck.wants <= 0 &&
+        actualToCheck.savings <= 0;
+  }
+
+  // Get the allocation to display (optimistic update or actual)
+  TransactionAllocation _getDisplayActual() {
+    // Use optimistic update if it's recent (within 10 seconds)
+    if (_optimisticActual != null && _lastOptimisticUpdate != null) {
+      final timeSinceUpdate = DateTime.now().difference(_lastOptimisticUpdate!);
+      if (timeSinceUpdate.inSeconds < 10) {
+        return _optimisticActual!;
+      } else {
+        // Clear old optimistic update
+        _optimisticActual = null;
+        _lastOptimisticUpdate = null;
+      }
+    }
+    return widget.actual;
   }
 
   @override
@@ -68,34 +84,49 @@ class _BudgetGraphWidgetState extends State<BudgetGraphWidget> {
       print(
           'Current: needs=${widget.actual.needs}, wants=${widget.actual.wants}, savings=${widget.actual.savings}');
 
-      // Store the new actual values
-      _previousActual = widget.actual;
+      // Update cache key
       _cacheKey = '';
       _generateCacheKey();
 
-      // Flag that we've received new transaction data
-      _hasNewTransactions = true;
+      // Clear any optimistic updates since we have real data
+      _optimisticActual = null;
+      _lastOptimisticUpdate = null;
+
+      // Request lightweight refresh (prefer local data)
+      _refreshDataOptimized();
     } else if (idealChanged) {
       print('BudgetGraphWidget: Budget targets changed, updating display');
       _cacheKey = '';
       _generateCacheKey();
     }
-
-    // If we have new transactions, refresh to get complete updated data
-    if (_hasNewTransactions) {
-      _hasNewTransactions = false; // Reset flag
-      _refreshDataIfNeeded();
-    }
   }
 
   // Generate a cache key based on current values
   String _generateCacheKey() {
+    final displayActual = _getDisplayActual();
     _cacheKey =
-        '${widget.actual.needs}_${widget.actual.wants}_${widget.actual.savings}_${widget.ideal.needs}_${widget.ideal.wants}_${widget.ideal.savings}';
+        '${displayActual.needs}_${displayActual.wants}_${displayActual.savings}_${widget.ideal.needs}_${widget.ideal.wants}_${widget.ideal.savings}';
     return _cacheKey;
   }
 
-  // Check if data refresh is needed and request it
+  // Optimized refresh that prefers local data and avoids network calls
+  void _refreshDataOptimized() {
+    print(
+        'BudgetGraphWidget: Requesting optimized data refresh (local preferred)');
+
+    // Use a post-frame callback to avoid build/setState conflicts
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+
+      // Request data but prefer local/cached data
+      // Only go to network if local data is stale
+      context
+          .read<TransactionAnalysisBloc>()
+          .add(const LoadTransactionAnalysis(forceRefresh: false));
+    });
+  }
+
+  // Check if data refresh is needed and request it (legacy method for initial load)
   void _refreshDataIfNeeded() {
     print('BudgetGraphWidget: Requesting latest transaction data');
 
@@ -103,11 +134,10 @@ class _BudgetGraphWidgetState extends State<BudgetGraphWidget> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
 
-      // Request latest data from local storage first
-      // Only force refresh from server if local data is stale
+      // For initial load, also prefer local data
       context
           .read<TransactionAnalysisBloc>()
-          .add(const RefreshTransactionHistory(forceRefresh: false));
+          .add(const LoadTransactionAnalysis(forceRefresh: false));
     });
   }
 
@@ -122,31 +152,46 @@ class _BudgetGraphWidgetState extends State<BudgetGraphWidget> {
       _cacheKey = newCacheKey;
     }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildBudgetBar(
-          'Needs (50%)',
-          widget.actual.needs,
-          widget.ideal.needs,
-          Colors.blue,
-          context,
-        ),
-        _buildBudgetBar(
-          'Wants (30%)',
-          widget.actual.wants,
-          widget.ideal.wants,
-          Colors.orange,
-          context,
-        ),
-        _buildBudgetBar(
-          'Savings (20%)',
-          widget.actual.savings,
-          widget.ideal.savings,
-          Colors.green,
-          context,
-        ),
-      ],
+    final displayActual = _getDisplayActual();
+
+    return BlocListener<TransactionAnalysisBloc, TransactionAnalysisState>(
+      listener: (context, state) {
+        // If we receive updated analysis data, clear optimistic updates
+        if (state is TransactionAnalysisLoaded) {
+          if (_optimisticActual != null) {
+            setState(() {
+              _optimisticActual = null;
+              _lastOptimisticUpdate = null;
+            });
+          }
+        }
+      },
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildBudgetBar(
+            'Needs (50%)',
+            displayActual.needs,
+            widget.ideal.needs,
+            Colors.blue,
+            context,
+          ),
+          _buildBudgetBar(
+            'Wants (30%)',
+            displayActual.wants,
+            widget.ideal.wants,
+            Colors.orange,
+            context,
+          ),
+          _buildBudgetBar(
+            'Savings (20%)',
+            displayActual.savings,
+            widget.ideal.savings,
+            Colors.green,
+            context,
+          ),
+        ],
+      ),
     );
   }
 

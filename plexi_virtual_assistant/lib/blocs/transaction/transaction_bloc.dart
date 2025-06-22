@@ -1,6 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../data/repositories/transactions/transaction_repository_new.dart';
 import '../../data/models/transaction.dart';
+import '../../data/models/transaction_analysis.dart';
 import 'transaction_event.dart';
 import 'transaction_state.dart';
 import 'dart:async';
@@ -324,6 +325,70 @@ class TransactionBloc extends Bloc<TransactionEvent, TransactionState>
         isInitialLoad: false,
       ));
 
+      // ALWAYS trigger quick budget update for ANY chat transactions (summary or real)
+      if (_analysisBloc != null) {
+        final existingAnalysis = _analysisBloc!.cachedAnalysis;
+        if (existingAnalysis != null) {
+          TransactionAllocation updatedActual;
+
+          if (!isSummaryOnly) {
+            // For real transactions, calculate allocation from the actual transactions
+            final newAllocation =
+                _calculateAllocationFromTransactions(transactions);
+
+            updatedActual = TransactionAllocation(
+              needs: existingAnalysis.actual.needs + newAllocation.needs,
+              wants: existingAnalysis.actual.wants + newAllocation.wants,
+              savings: existingAnalysis.actual.savings + newAllocation.savings,
+            );
+
+            print(
+                'TransactionBloc: Triggering QuickBudgetUpdate for real transactions - Needs: ${updatedActual.needs}, Wants: ${updatedActual.wants}, Savings: ${updatedActual.savings}');
+          } else {
+            // For summary updates, use the total amount and apply proportional distribution
+            final currentTotal = existingAnalysis.actual.needs +
+                existingAnalysis.actual.wants +
+                existingAnalysis.actual.savings;
+
+            if (currentTotal > 0) {
+              // Apply same proportions from existing data
+              final needsRatio = existingAnalysis.actual.needs / currentTotal;
+              final wantsRatio = existingAnalysis.actual.wants / currentTotal;
+              final savingsRatio =
+                  existingAnalysis.actual.savings / currentTotal;
+
+              updatedActual = TransactionAllocation(
+                needs: existingAnalysis.actual.needs +
+                    (event.totalAmount * needsRatio),
+                wants: existingAnalysis.actual.wants +
+                    (event.totalAmount * wantsRatio),
+                savings: existingAnalysis.actual.savings +
+                    (event.totalAmount * savingsRatio),
+              );
+            } else {
+              // Fallback to 50/30/20 rule if no existing data
+              updatedActual = TransactionAllocation(
+                needs:
+                    existingAnalysis.actual.needs + (event.totalAmount * 0.5),
+                wants:
+                    existingAnalysis.actual.wants + (event.totalAmount * 0.3),
+                savings:
+                    existingAnalysis.actual.savings + (event.totalAmount * 0.2),
+              );
+            }
+
+            print(
+                'TransactionBloc: Triggering QuickBudgetUpdate for summary - Needs: ${updatedActual.needs}, Wants: ${updatedActual.wants}, Savings: ${updatedActual.savings}');
+          }
+
+          // Trigger quick update for immediate UI response
+          _analysisBloc!.add(QuickBudgetUpdate(
+            newActual: updatedActual,
+            fromChat: true,
+          ));
+        }
+      }
+
       // Still refresh analysis bloc since we have new data
       _refreshAnalysisBloc();
     } catch (e) {
@@ -442,6 +507,46 @@ class TransactionBloc extends Bloc<TransactionEvent, TransactionState>
     } catch (e) {
       emit(const TransactionError('Failed to delete transaction'));
     }
+  }
+
+  // Helper method to calculate allocation from transactions
+  TransactionAllocation _calculateAllocationFromTransactions(
+      List<Transaction> transactions) {
+    double needs = 0.0;
+    double wants = 0.0;
+    double savings = 0.0;
+
+    for (final transaction in transactions) {
+      final amount = transaction.amount;
+
+      switch (transaction.category) {
+        // Needs categories
+        case TransactionCategory.groceries:
+        case TransactionCategory.housing:
+        case TransactionCategory.transport:
+          needs += amount;
+          break;
+
+        // Savings categories
+        case TransactionCategory.savingsAndInvestments:
+          savings += amount;
+          break;
+
+        // Wants categories (everything else)
+        case TransactionCategory.dining:
+        case TransactionCategory.entertainment:
+        case TransactionCategory.shopping:
+        case TransactionCategory.other:
+          wants += amount;
+          break;
+      }
+    }
+
+    return TransactionAllocation(
+      needs: needs,
+      wants: wants,
+      savings: savings,
+    );
   }
 
   // Helper method to refresh the analysis bloc
