@@ -91,6 +91,29 @@ class CalorieRepository {
         }
       }
 
+      // Also fetch the summary data to get correct totals
+      Map<String, dynamic>? summaryData;
+      try {
+        final summaryResponse = await apiService!.post('/calories/summary', {
+          'user_id': userId,
+          'period': 'daily',
+        });
+        
+        if (summaryResponse != null && summaryResponse is Map<String, dynamic>) {
+          // The server returns the summary data directly
+          summaryData = {
+            'totalCalories': _parseToInt(summaryResponse['totalCalories']),
+            'totalCarbs': _parseToDouble(summaryResponse['totalCarbs']),
+            'totalProtein': _parseToDouble(summaryResponse['totalProtein']),
+            'totalFat': _parseToDouble(summaryResponse['totalFat']),
+            'breakdown': summaryResponse['breakdown'] ?? [],
+          };
+          print("CalorieRepository: Processed summary data: $summaryData");
+        }
+      } catch (e) {
+        print("CalorieRepository: Error fetching summary data: $e");
+      }
+
       if (response != null && response['success'] == true) {
         final List<dynamic> serverEntries = response['entries'] ?? [];
 
@@ -192,11 +215,31 @@ class CalorieRepository {
             // Save to local storage
             await _saveEntries();
 
-            // Update daily summary
+            // Update daily summary - but also save the server summary if available
             _updateDailySummary();
           }
-        } else {}
+        } else {
+          print("CalorieRepository: No server entries returned, but may have summary data");
+        }
+        
+        // Save summary data if we have it, regardless of whether there were entries
+        if (summaryData != null) {
+          final today = DateTime.now();
+          final todayStr = "${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}";
+          await _dbHelper.saveDailyCalorieSummary(todayStr, summaryData);
+          print("CalorieRepository: Saved server summary to local cache: $summaryData");
+        }
       } else {
+        print("CalorieRepository: Server response was not successful or missing");
+        
+        // Still save summary data if we have it from the separate summary call
+        if (summaryData != null) {
+          final today = DateTime.now();
+          final todayStr = "${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}";
+          await _dbHelper.saveDailyCalorieSummary(todayStr, summaryData);
+          print("CalorieRepository: Saved server summary to local cache (fallback): $summaryData");
+        }
+        
         // Try to get summary data as a fallback
         await _fetchDailySummaryFromServer();
       }
@@ -459,16 +502,95 @@ class CalorieRepository {
       // Make sure entries are initialized
       await _initializeEntries();
 
-      // If we need to refresh or it's a new day, fetch from server
-      if (forceRefresh || _isNewDay() || !_isCacheValid) {
-        if (apiService != null) {
-          await _fetchDailyCaloriesFromServerVoid();
-        }
-      }
+      // Get current user ID
+      final userId = apiService?.getCurrentUserId();
 
       // Get today's date
       final now = DateTime.now();
       final today = DateTime(now.year, now.month, now.day);
+      final todayStr = "${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}";
+
+      // Check if we have valid cached summary data first
+      Map<String, dynamic>? cachedSummary;
+      if (!forceRefresh && userId != null) {
+        try {
+          cachedSummary = await _dbHelper.getDailyCalorieSummary(todayStr);
+          if (cachedSummary != null) {
+            // Check if the cache is still valid (less than 5 minutes old)
+            final lastUpdated = cachedSummary['lastUpdated'] as int;
+            final lastUpdateTime = DateTime.fromMillisecondsSinceEpoch(lastUpdated);
+            final cacheAge = DateTime.now().difference(lastUpdateTime);
+            
+            if (cacheAge.inMinutes < 5) {
+              print("CalorieRepository: Using cached summary data: $cachedSummary");
+              
+              // Still get today's entries for the breakdown and entries list
+              final todayEntries = _entries.where((entry) {
+                final entryDate = DateTime(
+                  entry.timestamp.year,
+                  entry.timestamp.month,
+                  entry.timestamp.day,
+                );
+                return entryDate.isAtSameMomentAs(today);
+              }).toList();
+              
+              return {
+                'totalCalories': cachedSummary['totalCalories'] ?? 0,
+                'totalCarbs': cachedSummary['totalCarbs'] ?? 0.0,
+                'totalProtein': cachedSummary['totalProtein'] ?? 0.0,
+                'totalFat': cachedSummary['totalFat'] ?? 0.0,
+                'breakdown': cachedSummary['breakdown'] ?? [],
+                'entries': todayEntries.map((e) => e.toJson()).toList(),
+              };
+            } else {
+              print("CalorieRepository: Cached summary is stale (${cacheAge.inMinutes} minutes old), will refresh");
+            }
+          }
+        } catch (e) {
+          print("CalorieRepository: Error reading cached summary: $e");
+        }
+      }
+
+      // If we need to refresh or it's a new day, fetch from server
+      if (forceRefresh || _isNewDay() || !_isCacheValid || cachedSummary == null) {
+        if (apiService != null) {
+          await _fetchDailyCaloriesFromServerVoid();
+          
+          // After fetching from server, try to get updated cached summary
+          if (userId != null) {
+            try {
+              cachedSummary = await _dbHelper.getDailyCalorieSummary(todayStr);
+              if (cachedSummary != null) {
+                print("CalorieRepository: Using fresh cached summary data after server fetch: $cachedSummary");
+                
+                // Get today's entries for the breakdown and entries list
+                final todayEntries = _entries.where((entry) {
+                  final entryDate = DateTime(
+                    entry.timestamp.year,
+                    entry.timestamp.month,
+                    entry.timestamp.day,
+                  );
+                  return entryDate.isAtSameMomentAs(today);
+                }).toList();
+                
+                return {
+                  'totalCalories': cachedSummary['totalCalories'] ?? 0,
+                  'totalCarbs': cachedSummary['totalCarbs'] ?? 0.0,
+                  'totalProtein': cachedSummary['totalProtein'] ?? 0.0,
+                  'totalFat': cachedSummary['totalFat'] ?? 0.0,
+                  'breakdown': cachedSummary['breakdown'] ?? [],
+                  'entries': todayEntries.map((e) => e.toJson()).toList(),
+                };
+              }
+            } catch (e) {
+              print("CalorieRepository: Error reading fresh cached summary: $e");
+            }
+          }
+        }
+      }
+
+      // Fall back to calculating from entries if no cached summary is available
+      print("CalorieRepository: No cached summary available, calculating from entries");
 
       // Filter entries for today
       final todayEntries = _entries.where((entry) {
@@ -753,7 +875,26 @@ class CalorieRepository {
           // Check if server detected a duplicate
           if (response != null && response['duplicate'] == true) {
             print(
-                "CalorieRepository: Server detected duplicate, skipping local add");
+                "CalorieRepository: Server detected duplicate, but updating summary data");
+            
+            // Even though it's a duplicate, the server may have provided updated totals
+            // Extract summary data from the server response and update our cache
+            if (response['total_calories'] != null) {
+              final serverSummary = {
+                'totalCalories': _parseToInt(response['total_calories']),
+                'totalCarbs': _parseToDouble(response['total_carbs']),
+                'totalProtein': _parseToDouble(response['total_protein']),
+                'totalFat': _parseToDouble(response['total_fat']),
+                'breakdown': response['breakdown'] ?? [],
+              };
+              
+              // Save the updated summary to local cache
+              final today = DateTime.now();
+              final todayStr = "${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}";
+              await _dbHelper.saveDailyCalorieSummary(todayStr, serverSummary);
+              print("CalorieRepository: Updated cached summary with server data after duplicate detection: $serverSummary");
+            }
+            
             return true; // Server already has this entry
           }
 
@@ -763,6 +904,23 @@ class CalorieRepository {
               response['id'] != null) {
             serverId = response['id'].toString();
             print("CalorieRepository: Server assigned ID $serverId to entry");
+          }
+          
+          // Also check if the server provided summary data in the response
+          if (response != null && response['total_calories'] != null) {
+            final serverSummary = {
+              'totalCalories': _parseToInt(response['total_calories']),
+              'totalCarbs': _parseToDouble(response['total_carbs']),
+              'totalProtein': _parseToDouble(response['total_protein']),
+              'totalFat': _parseToDouble(response['total_fat']),
+              'breakdown': response['breakdown'] ?? [],
+            };
+            
+            // Save the summary to local cache
+            final today = DateTime.now();
+            final todayStr = "${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}";
+            await _dbHelper.saveDailyCalorieSummary(todayStr, serverSummary);
+            print("CalorieRepository: Updated cached summary with server data from add response: $serverSummary");
           }
         } catch (e) {
           print("CalorieRepository: Server error while adding entry: $e");
