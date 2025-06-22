@@ -15,6 +15,7 @@ class NameWelcomeScreen extends StatefulWidget {
 class _NameWelcomeScreenState extends State<NameWelcomeScreen> {
   String _name = '';
   bool _canProceed = false;
+  bool _isLoading = false;
 
   void _updateName(String value) {
     setState(() {
@@ -24,21 +25,58 @@ class _NameWelcomeScreenState extends State<NameWelcomeScreen> {
   }
 
   void _saveAndProceed(BuildContext context) {
+    if (_name.trim().isEmpty) return;
+
+    print('DEBUG: _saveAndProceed called with name: "${_name.trim()}"');
+
+    setState(() {
+      _isLoading = true;
+    });
+
     final preferences = UserPreferences(preferredName: _name.trim());
+    print(
+        'DEBUG: Created UserPreferences with name: ${preferences.preferredName}');
+
     context.read<PreferencesBloc>().add(SavePreferences(preferences));
+    print('DEBUG: SavePreferences event added to bloc');
   }
 
   @override
   Widget build(BuildContext context) {
     return BlocListener<PreferencesBloc, PreferencesState>(
       listener: (context, state) {
-        if (state is PreferencesLoaded && _canProceed) {
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (_) => const HomeScreen()),
-          );
+        print('DEBUG: NameWelcomeScreen received state: ${state.runtimeType}');
+        if (state is PreferencesLoaded) {
+          print(
+              'DEBUG: PreferencesLoaded with name: ${state.preferences.preferredName}');
+          // Only navigate if we have a valid name and we're currently loading
+          if (state.preferences.preferredName != null &&
+              state.preferences.preferredName!.isNotEmpty &&
+              _isLoading) {
+            print('DEBUG: Navigating to HomeScreen');
+            setState(() {
+              _isLoading = false;
+            });
+            // Use pushAndRemoveUntil to prevent back navigation to this screen
+            Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(builder: (_) => const HomeScreen()),
+              (route) => false,
+            );
+          } else {
+            setState(() {
+              _isLoading = false;
+            });
+          }
         } else if (state is PreferencesError) {
+          print('DEBUG: PreferencesError: ${state.message}');
+          setState(() {
+            _isLoading = false;
+          });
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(state.message)),
+            SnackBar(
+              content: Text('Error saving preferences: ${state.message}'),
+              backgroundColor: Colors.red,
+            ),
           );
         }
       },
@@ -75,7 +113,9 @@ class _NameWelcomeScreenState extends State<NameWelcomeScreen> {
                 right: 24,
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.transparent,
+                    backgroundColor: _canProceed && !_isLoading
+                        ? Colors.white.withOpacity(0.2)
+                        : Colors.transparent,
                     foregroundColor: Colors.white,
                     elevation: 0,
                     shadowColor: Colors.transparent,
@@ -83,18 +123,37 @@ class _NameWelcomeScreenState extends State<NameWelcomeScreen> {
                       borderRadius: BorderRadius.circular(8),
                     ),
                   ),
-                  onPressed:
-                      _canProceed ? () => _saveAndProceed(context) : null,
-                  child: const Text(
-                    'Get Started',
-                    style: TextStyle(
+                  onPressed: (_canProceed && !_isLoading)
+                      ? () => _saveAndProceed(context)
+                      : null,
+                  child: _isLoading
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Text(
+                          'Get Started',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                ),
+              ),
+              if (_isLoading)
+                Container(
+                  color: Colors.black.withOpacity(0.3),
+                  child: const Center(
+                    child: CircularProgressIndicator(
                       color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
                     ),
                   ),
                 ),
-              ),
             ],
           ),
         ),

@@ -51,8 +51,8 @@ void main() async {
 
   // Create a single instance of ApiService to be shared across repositories.
   final apiService = ApiService(
-      // baseUrl: 'https://tiktok-analyzer-291212790768.us-west1.run.app');
-      baseUrl: 'http://192.168.1.148:8000');
+      baseUrl: 'https://tiktok-analyzer-291212790768.us-west1.run.app');
+  // baseUrl: 'http://192.168.1.215:8000');
 
   // Create CalorieRepository with ApiService
   final calorieRepository = CalorieRepository(apiService: apiService);
@@ -235,7 +235,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                 if (prefsState.preferences.preferredName == null ||
                     prefsState.preferences.preferredName!.isEmpty) {
                   return const NameWelcomeScreen();
-                  // return const HomeScreen();
                 } else {
                   return const HomeScreen();
                 }

@@ -45,32 +45,42 @@ class ApiService {
     if (_cachedToken != null &&
         _tokenExpiry != null &&
         now.isBefore(_tokenExpiry!)) {
+      print('DEBUG: Using cached token');
       return _cachedToken!;
     }
 
     try {
+      print('DEBUG: Getting fresh token from Firebase...');
       final user = _auth.currentUser;
 
       if (user == null) {
+        print('DEBUG: No authenticated user found');
         throw Exception('User not authenticated');
       }
+
+      print('DEBUG: User found: ${user.email}');
 
       // Get a fresh token with forceRefresh=false to reduce Firebase calls
       // Only force refresh if we don't have a token or it's expired
       final forceRefresh = _cachedToken == null ||
           (_tokenExpiry != null && now.isAfter(_tokenExpiry!));
+
+      print('DEBUG: Force refresh: $forceRefresh');
       final token = await user.getIdToken(forceRefresh);
 
       if (token == null) {
+        print('DEBUG: Firebase returned null token');
         throw Exception('Failed to get token');
       }
 
+      print('DEBUG: Successfully got token from Firebase');
       // Cache the token with an expiry time (1 hour is typical for Firebase tokens)
       _cachedToken = token;
       _tokenExpiry = now.add(const Duration(
           minutes: 55)); // Set expiry slightly before actual expiry
       return token;
     } catch (e) {
+      print('DEBUG: Error getting token: $e');
       rethrow;
     }
   }
@@ -133,7 +143,7 @@ class ApiService {
           errorDetails = 'Could not access response body';
         }
         throw Exception(
-            'API request failed with status: ${response.statusCode}');
+            'API request failed with status: ${response.statusCode}. Details: $errorDetails');
       }
     } catch (e) {
       rethrow;
@@ -204,7 +214,7 @@ class ApiService {
           errorDetails = 'Could not access response body';
         }
         throw Exception(
-            'API request failed with status: ${response.statusCode}');
+            'API request failed with status: ${response.statusCode}. Details: $errorDetails');
       }
     } catch (e) {
       rethrow;
@@ -232,13 +242,19 @@ class ApiService {
 
   Future<Map<String, String>> _getHeaders() async {
     try {
+      print('DEBUG: ApiService getting headers...');
+      final user = _auth.currentUser;
+      print('DEBUG: Current Firebase user: ${user?.email ?? 'null'}');
+
       final token = await _getValidToken();
+      print('DEBUG: Got token: ${token.substring(0, 20)}...');
 
       return {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $token',
       };
     } catch (e) {
+      print('DEBUG: Error getting headers: $e');
       rethrow;
     }
   }
