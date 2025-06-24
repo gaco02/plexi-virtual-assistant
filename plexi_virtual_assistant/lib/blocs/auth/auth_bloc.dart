@@ -83,20 +83,6 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       }
     });
 
-    on<SignInWithAppleRequested>((event, emit) async {
-      emit(AuthLoading());
-      try {
-        final userCredential = await authRepository.signInWithApple();
-        if (userCredential.user != null) {
-          emit(AuthAuthenticated(userCredential.user!));
-        } else {
-          emit(AuthUnauthenticated());
-        }
-      } catch (e) {
-        emit(AuthError(e.toString()));
-      }
-    });
-
     on<SignInWithEmailRequested>((event, emit) async {
       emit(AuthLoading());
       try {

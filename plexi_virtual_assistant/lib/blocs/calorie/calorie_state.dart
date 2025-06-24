@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 import '../../utils/nutrition_calculator.dart';
+import '../../data/models/calorie_entry.dart';
 
 enum CalorieStatus { initial, loading, loaded, error }
 
@@ -13,7 +14,7 @@ class CalorieState extends Equatable {
   final int calorieGoal;
   final NutritionPlan? nutritionPlan;
   final String? errorMessage;
-  final List<dynamic> entries;
+  final List<CalorieEntry> entries;
   final Map<DateTime, int>? dailyTotals;
 
   const CalorieState({
@@ -55,7 +56,7 @@ class CalorieState extends Equatable {
     int? calorieGoal,
     NutritionPlan? nutritionPlan,
     String? errorMessage,
-    List<dynamic>? entries,
+    List<CalorieEntry>? entries,
     Map<DateTime, int>? dailyTotals,
   }) {
     return CalorieState(

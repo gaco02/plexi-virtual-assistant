@@ -43,12 +43,13 @@ class _CalorieSummaryState extends State<CalorieSummary> {
       _cachedTotalCalories = _calorieBloc.state.totalCalories;
       _showSkeleton = false;
 
-      // Still refresh data in the background to ensure accuracy
-      _calorieBloc.add(const LoadDailyCalories(forceRefresh: true));
+      // Don't refresh automatically - let other parts of the app handle loading
     } else if (!_hasRequestedCalorieLoad) {
       _hasRequestedCalorieLoad = true;
-      // Always force refresh when loading initially to ensure fresh data
-      _calorieBloc.add(const LoadDailyCalories(forceRefresh: true));
+      // Only force refresh if we have no data at all
+      if (_calorieBloc.state.status == CalorieStatus.initial) {
+        _calorieBloc.add(const LoadDailyCalories(forceRefresh: false));
+      }
     }
 
     // Ensure we transition from skeleton after a reasonable timeout

@@ -32,6 +32,7 @@ class TransactionsLoaded extends TransactionState {
   final double weeklyAmount;
   final double monthlyAmount;
   final String period;
+  final bool isInitialLoad;
 
   const TransactionsLoaded(
     this.transactions, {
@@ -39,5 +40,6 @@ class TransactionsLoaded extends TransactionState {
     this.weeklyAmount = 0.0,
     this.monthlyAmount = 0.0,
     this.period = 'Today',
+    this.isInitialLoad = true,
   });
 }

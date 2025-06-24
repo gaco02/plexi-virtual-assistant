@@ -65,48 +65,54 @@ class PreferencesBloc extends Bloc<PreferencesEvent, PreferencesState> {
 
     on<SavePreferences>((event, emit) async {
       try {
+        print(
+            'DEBUG: SavePreferences event received with name: ${event.preferences.preferredName}');
+
         // First check if we have existing preferences
         UserPreferences mergedPreferences;
 
         if (state is PreferencesLoaded) {
           // Get current preferences
           final currentPrefs = (state as PreferencesLoaded).preferences;
+          print('DEBUG: Current preferences: ${currentPrefs.preferredName}');
 
-          // Create merged preferences using copyWith to preserve existing values
+          // Create merged preferences - use new values if provided, otherwise keep current ones
           mergedPreferences = currentPrefs.copyWith(
-            preferredName:
-                event.preferences.preferredName ?? currentPrefs.preferredName,
-            monthlySalary:
-                event.preferences.monthlySalary ?? currentPrefs.monthlySalary,
-            currentWeight:
-                event.preferences.currentWeight ?? currentPrefs.currentWeight,
-            height: event.preferences.height ?? currentPrefs.height,
-            age: event.preferences.age ?? currentPrefs.age,
-            dailyCalorieTarget: event.preferences.dailyCalorieTarget ??
-                currentPrefs.dailyCalorieTarget,
-            weightGoal: event.preferences.weightGoal ?? currentPrefs.weightGoal,
-            activityLevel:
-                event.preferences.activityLevel ?? currentPrefs.activityLevel,
-            targetWeight:
-                event.preferences.targetWeight ?? currentPrefs.targetWeight,
-            sex: event.preferences.sex ?? currentPrefs.sex,
+            preferredName: event.preferences.preferredName,
+            monthlySalary: event.preferences.monthlySalary,
+            currentWeight: event.preferences.currentWeight,
+            height: event.preferences.height,
+            age: event.preferences.age,
+            dailyCalorieTarget: event.preferences.dailyCalorieTarget,
+            weightGoal: event.preferences.weightGoal,
+            activityLevel: event.preferences.activityLevel,
+            targetWeight: event.preferences.targetWeight,
+            sex: event.preferences.sex,
           );
         } else {
           // No existing preferences, use the new ones directly
           mergedPreferences = event.preferences;
         }
 
+        print(
+            'DEBUG: Merged preferences name: ${mergedPreferences.preferredName}');
+        print('DEBUG: Saving preferences to repository...');
+
         // Save the merged preferences
         final success =
             await _repository.savePreferences(mergedPreferences.toJson());
+        print('DEBUG: Save result: $success');
+
         if (success) {
+          print('DEBUG: Emitting PreferencesLoaded state');
           emit(PreferencesLoaded(mergedPreferences));
+        } else {
+          print('DEBUG: Save failed, emitting error');
+          emit(PreferencesError('Failed to save preferences'));
         }
       } catch (e) {
-        // Keep current state on error
-        if (state is PreferencesLoaded) {
-          emit(state);
-        }
+        print('DEBUG: Exception in SavePreferences: $e');
+        emit(PreferencesError('Error saving preferences: $e'));
       }
     });
   }

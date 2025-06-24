@@ -38,6 +38,7 @@ class TransactionAnalysisBloc
     on<DeleteTransactionEvent>(_onDeleteTransaction);
     on<RefreshTransactionHistory>(_onRefreshHistory);
     on<ManualRefreshAnalysis>(_onManualRefreshAnalysis);
+    on<QuickBudgetUpdate>(_onQuickBudgetUpdate);
 
     // Set up the scheduled refresh timer
     _setupScheduledRefresh();
@@ -120,6 +121,29 @@ class TransactionAnalysisBloc
     Emitter<TransactionAnalysisState> emit,
   ) async {
     try {
+      // Check if we have recent cached data and the request prefers local
+      if (event.preferLocal && _cachedAnalysis != null && !event.forceRefresh) {
+        // Use cached data immediately without any network requests
+        print(
+            'TransactionAnalysisBloc: Using cached analysis data (preferLocal=true)');
+
+        if (_usingCombinedState) {
+          if (state is TransactionCombinedState) {
+            final combinedState = state as TransactionCombinedState;
+            emit(combinedState.copyWith(analysis: _cachedAnalysis));
+          } else {
+            emit(TransactionCombinedState(
+              analysis: _cachedAnalysis,
+              transactionsByDate: _cachedHistory,
+            ));
+            _usingCombinedState = true;
+          }
+        } else {
+          emit(TransactionAnalysisLoaded(_cachedAnalysis!));
+        }
+        return;
+      }
+
       // If forceRefresh is true, invalidate cache
       if (event.forceRefresh) {
         _cachedAnalysis = null;
@@ -334,11 +358,15 @@ class TransactionAnalysisBloc
         emit(combinedState.copyWith(isRefreshing: true));
       }
 
-      // If forceRefresh is true, invalidate caches first
-      if (event.forceRefresh) {
-        print('TransactionAnalysisBloc: Force refreshing transaction data');
-        _cachedAnalysis = null;
+      // For budget graph updates, prefer local data unless explicitly forcing refresh
+      final shouldUseNetwork = event.forceRefresh;
+
+      if (shouldUseNetwork) {
+        print('TransactionAnalysisBloc: Performing network sync');
         _repository.invalidateTransactionCaches();
+      } else {
+        print(
+            'TransactionAnalysisBloc: Using local storage data for budget graph update');
       }
 
       // Get the current month in YYYY-MM format
@@ -346,24 +374,24 @@ class TransactionAnalysisBloc
       final currentMonth =
           '${now.year}-${now.month.toString().padLeft(2, '0')}';
 
-      // Get the latest analysis data - use forceRefreshAnalysis if requested
-      final analysis = event.forceRefresh 
+      // Get transaction analysis data (from network or local cache)
+      final analysis = shouldUseNetwork
           ? await _repository.forceRefreshAnalysis(currentMonth)
           : await _repository.getTransactionAnalysis(currentMonth);
 
-      // Cache the analysis data
+      // Store in cache
       _cachedAnalysis = analysis;
 
-      // Get the latest transaction history using the forceRefresh parameter
+      // Get transaction history (from network or local cache)
       final history = await _repository.getTransactionHistory(
           _cachedHistoryPeriod ?? 'month',
           _cachedHistoryDate,
-          event.forceRefresh);
+          shouldUseNetwork);
 
-      // Cache the history data
+      // Store in cache
       _cachedHistory = history;
 
-      // Emit the appropriate state based on what we're using
+      // Update the UI with the data
       if (_usingCombinedState) {
         if (state is TransactionCombinedState) {
           final combinedState = state as TransactionCombinedState;
@@ -373,24 +401,27 @@ class TransactionAnalysisBloc
               isRefreshing: false));
         }
       } else {
-        // Emit separate states for analysis and history
         emit(TransactionAnalysisLoaded(analysis));
         emit(TransactionHistoryLoaded(history));
       }
-      
-      print('TransactionAnalysisBloc: Refresh complete. Analysis total - Needs: ${analysis.actual.needs}, Wants: ${analysis.actual.wants}, Savings: ${analysis.actual.savings}');
+
+      // Update the last analysis request time
+      _lastAnalysisRequestTime = DateTime.now();
+
+      print(
+          'TransactionAnalysisBloc: Refresh complete using ${shouldUseNetwork ? "network" : "local"} data. Analysis total - Needs: ${analysis.actual.needs}, Wants: ${analysis.actual.wants}, Savings: ${analysis.actual.savings}');
     } catch (e) {
       print('TransactionAnalysisBloc: Error refreshing history: $e');
-      // If there's an error, try to refresh just the data we have cached
+      // If there's an error, try to use cached data
       if (_cachedHistoryPeriod != null) {
         add(LoadTransactionHistory(
           period: _cachedHistoryPeriod,
           date: _cachedHistoryDate,
-          forceRefresh: false, // Don't force refresh to avoid potential infinite loops
+          forceRefresh: false,
         ));
       }
 
-      add(LoadTransactionAnalysis(forceRefresh: false)); 
+      add(LoadTransactionAnalysis(forceRefresh: false));
     }
   }
 
@@ -462,6 +493,70 @@ class TransactionAnalysisBloc
       }
     }
   }
+
+  // Handle quick budget updates for immediate UI response (from chat)
+  Future<void> _onQuickBudgetUpdate(
+    QuickBudgetUpdate event,
+    Emitter<TransactionAnalysisState> emit,
+  ) async {
+    try {
+      print(
+          'TransactionAnalysisBloc: Processing quick budget update from chat');
+
+      // If we have cached analysis, create an optimistic update
+      if (_cachedAnalysis != null) {
+        // Create updated analysis with new actual values
+        final updatedAnalysis = TransactionAnalysis(
+          monthlySalary: _cachedAnalysis!.monthlySalary,
+          ideal: _cachedAnalysis!.ideal,
+          actual: event.newActual, // Use the new allocation from chat
+          recommendations: _cachedAnalysis!.recommendations,
+        );
+
+        // Update our cache
+        _cachedAnalysis = updatedAnalysis;
+
+        // Emit the updated state immediately
+        if (_usingCombinedState) {
+          if (state is TransactionCombinedState) {
+            final combinedState = state as TransactionCombinedState;
+            emit(combinedState.copyWith(analysis: updatedAnalysis));
+          } else {
+            emit(TransactionCombinedState(
+              analysis: updatedAnalysis,
+              transactionsByDate: _cachedHistory,
+            ));
+            _usingCombinedState = true;
+          }
+        } else {
+          emit(TransactionAnalysisLoaded(updatedAnalysis));
+        }
+
+        print(
+            'TransactionAnalysisBloc: Quick update complete - Needs: ${event.newActual.needs}, Wants: ${event.newActual.wants}, Savings: ${event.newActual.savings}');
+
+        // Schedule a background refresh to get the real data (non-blocking)
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (mounted) {
+            add(const LoadTransactionAnalysis(
+                forceRefresh: false, preferLocal: false));
+          }
+        });
+      } else {
+        // No cached data, fallback to regular load
+        add(const LoadTransactionAnalysis(
+            forceRefresh: false, preferLocal: false));
+      }
+    } catch (e) {
+      print('TransactionAnalysisBloc: Error in quick budget update: $e');
+      // Fallback to regular load
+      add(const LoadTransactionAnalysis(
+          forceRefresh: false, preferLocal: false));
+    }
+  }
+
+  // Check if the bloc is still mounted/active
+  bool get mounted => !isClosed;
 
   // Method to get the current cached analysis data
   TransactionAnalysis? get cachedAnalysis => _cachedAnalysis;

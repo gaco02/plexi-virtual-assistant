@@ -12,6 +12,9 @@ import 'data/repositories/transactions/transaction_api_service.dart';
 import 'data/repositories/transactions/transaction_cache.dart';
 import 'data/repositories/preferences_repository.dart';
 import 'data/repositories/budget_repository.dart';
+import 'data/local/database_init_service.dart';
+import 'data/local/transaction_local_data_source.dart';
+import 'data/local/network_connectivity_service.dart';
 import 'blocs/chat/chat_bloc.dart';
 import 'blocs/auth/auth_bloc.dart';
 import 'blocs/transaction/transaction_bloc.dart';
@@ -28,6 +31,8 @@ import 'presentation/screens/home/home_screen.dart';
 import 'presentation/screens/loging/welcome_screen.dart';
 import 'data/cache/cache_manager.dart';
 
+final RouteObserver<PageRoute> routeObserver = RouteObserver<PageRoute>();
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
@@ -41,10 +46,13 @@ void main() async {
   final cacheManager = CacheManager();
   await cacheManager.init();
 
+  // Initialize SQLite database
+  await DatabaseInitService.initialize();
+
   // Create a single instance of ApiService to be shared across repositories.
   final apiService = ApiService(
-      // baseUrl: 'https://tiktok-analyzer-291212790768.us-west1.run.app');
-      baseUrl: 'http://192.168.1.180:8000');
+      baseUrl: 'https://tiktok-analyzer-291212790768.us-west1.run.app');
+  // baseUrl: 'http://192.168.1.215:8000');
 
   // Create CalorieRepository with ApiService
   final calorieRepository = CalorieRepository(apiService: apiService);
@@ -101,11 +109,21 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     final restaurantRepository = RestaurantRepository(widget.apiService);
     final authRepository = AuthRepository(widget.apiService);
 
-    // Create instances of the transaction services with the new modular structure
+    // Create instances of the transaction services with offline support
     final transactionApiService = TransactionApiService(widget.apiService);
     final transactionCache = TransactionCache();
-    final transactionRepository =
-        TransactionRepository(transactionApiService, transactionCache);
+    final localDataSource = TransactionLocalDataSource();
+    final connectivityService = NetworkConnectivityService();
+
+    final transactionRepository = TransactionRepository(
+        transactionApiService, transactionCache,
+        localDataSource: localDataSource,
+        connectivityService: connectivityService);
+
+    // Initialize the sync service with the command repository after it's created
+    DatabaseInitService.initialize(
+      commandRepository: transactionRepository.commandRepository,
+    );
 
     final preferencesRepository = PreferencesRepository(widget.apiService);
     final budgetRepository = BudgetRepository(widget.apiService);
@@ -124,6 +142,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         RepositoryProvider<PreferencesRepository>.value(
             value: preferencesRepository),
         RepositoryProvider<BudgetRepository>.value(value: budgetRepository),
+        // Add NetworkConnectivityService to repository providers
+        RepositoryProvider<NetworkConnectivityService>.value(
+            value: connectivityService),
       ],
       child: MultiBlocProvider(
         providers: [
@@ -214,7 +235,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                 if (prefsState.preferences.preferredName == null ||
                     prefsState.preferences.preferredName!.isEmpty) {
                   return const NameWelcomeScreen();
-                  // return const HomeScreen();
                 } else {
                   return const HomeScreen();
                 }

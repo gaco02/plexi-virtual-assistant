@@ -97,15 +97,8 @@ class _TransactionHistoryState extends State<TransactionHistory>
         final transactions =
             transactionsByDate.values.expand((list) => list).toList();
 
-        if (transactions.isEmpty) {
-          return const Center(
-            child: Text(
-              'No transactions for this time period',
-              style: TextStyle(color: Colors.white70),
-            ),
-          );
-        }
-
+        // Always call _buildHistoryContent, even if transactions is empty
+        // This ensures date selector and category filter are always shown
         return _buildHistoryContent(transactions);
       },
     );
@@ -133,7 +126,7 @@ class _TransactionHistoryState extends State<TransactionHistory>
     return SafeArea(
       child: Column(
         children: [
-          // Date selector
+          // Date selector - ALWAYS show this
           Padding(
             padding:
                 const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
@@ -148,7 +141,7 @@ class _TransactionHistoryState extends State<TransactionHistory>
             ),
           ),
 
-          // Category selector
+          // Category selector - ALWAYS show this
           Padding(
             padding:
                 const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
@@ -162,7 +155,7 @@ class _TransactionHistoryState extends State<TransactionHistory>
             ),
           ),
 
-          // Daily summary for selected date
+          // Daily summary for selected date - only show if there are transactions for that date
           if (filteredByDate.isNotEmpty)
             Padding(
               padding:
@@ -170,16 +163,32 @@ class _TransactionHistoryState extends State<TransactionHistory>
               child: _buildDailySummary(filteredByDate),
             ),
 
-          // Transaction entries list
+          // Transaction entries list or empty state
           Expanded(
             child: filteredTransactions.isEmpty
                 ? Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Text(
-                          'No transactions for this date',
-                          style: TextStyle(color: Colors.white70),
+                        // Show a more informative message
+                        Text(
+                          _selectedCategory == null
+                              ? 'No transactions for ${DateFormat('MMMM d, yyyy').format(_selectedDate)}'
+                              : 'No ${_selectedCategory!.displayName.toLowerCase()} transactions for ${DateFormat('MMMM d, yyyy').format(_selectedDate)}',
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 16,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Try selecting a different date or category',
+                          style: const TextStyle(
+                            color: Colors.white54,
+                            fontSize: 14,
+                          ),
+                          textAlign: TextAlign.center,
                         ),
                         const SizedBox(height: 16),
                         ElevatedButton(
