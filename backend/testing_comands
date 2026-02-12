@@ -1,0 +1,49 @@
+gcloud run deploy tiktok-analyzer \
+  --image gcr.io/plexi-assistant/tiktok-analyzer \
+  --platform managed \
+  --region us-west1 \
+  --allow-unauthenticated \
+  --add-cloudsql-instances=plexi-assistant:us-west1:plexi-postgres \
+  --update-env-vars \
+    DB_USER=plexi_user,\
+    DB_PASSWORD=Vancouver1229@,\
+    DB_NAME=plexi_db,\
+    DB_HOST=/cloudsql/plexi-assistant:us-west1:plexi-postgres
+
+
+    gcloud run deploy tiktok-analyzer \
+  --image gcr.io/plexi-assistant/tiktok-analyzer \
+  --platform managed \
+  --region us-west1 \
+  --allow-unauthenticated \
+  --add-cloudsql-instances=plexi-assistant:us-west1:plexi-postgres \
+  --set-env-vars DB_USER=plexi_user,DB_PASSWORD=Vancouver1229@,DB_NAME=plexi_db,DB_HOST=/cloudsql/plexi-assistant:us-west1:plexi-postgres
+
+  gcloud projects add-iam-policy-binding plexi-assistant \
+    --member="serviceAccount:firebase-adminsdk-fbsvc@virtual-assistant-app-f7f1d.iam.gserviceaccount.com" \
+    --role="roles/cloudsql.client"
+
+psql -h 127.0.0.1 -U plexi_user -d plexi_db
+
+  --------------------
+  user fire base
+  test@test.com
+  Osvaldo9
+
+  curl -X POST "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=AIzaSyCB6lVGdsQ2Dis5z5WVMN6Eex8eUgFQ5N4" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "test@test.com",
+    "password": "Osvaldo9",
+    "returnSecureToken": true
+  }'
+
+
+
+  idToken": "eyJhbGciOiJSUzI1NiIsImtpZCI6ImE5ZGRjYTc2YzEyMzMyNmI5ZTJlODJkOGFjNDg0MWU1MzMyMmI3NmEiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJodHRwczovL3NlY3VyZXRva2VuLmdvb2dsZS5jb20vdmlydHVhbC1hc3Npc3RhbnQtYXBwLWY3ZjFkIiwiYXVkIjoidmlydHVhbC1hc3Npc3RhbnQtYXBwLWY3ZjFkIiwiYXV0aF90aW1lIjoxNzQzNjMzODc3LCJ1c2VyX2lkIjoiUE1lOTNrVER3R1VuOEJIUG9sMHFycVNPdTlzMSIsInN1YiI6IlBNZTkza1REd0dVbjhCSFBvbDBxcnFTT3U5czEiLCJpYXQiOjE3NDM2MzM4NzcsImV4cCI6MTc0MzYzNzQ3NywiZW1haWwiOiJ0ZXN0QHRlc3QuY29tIiwiZW1haWxfdmVyaWZpZWQiOmZhbHNlLCJmaXJlYmFzZSI6eyJpZGVudGl0aWVzIjp7ImVtYWlsIjpbInRlc3RAdGVzdC5jb20iXX0sInNpZ25faW5fcHJvdmlkZXIiOiJwYXNzd29yZCJ9fQ.J5xfWHMMPSqCBXaRnWLrQcl5pCE1DbFoEx-Rn7LMDaTQAdCfDyz2Tx8pnV_YO4GEqsAFSvNRnuoT2j_4HUR4v3rqD_0_vIBirMOyJtp0grZ4EDtJ4yyhRum8IEDBjtK3JNlRsT49gT3sw-njd-SjbZv1dc8KDQTp5kT5sdrNTc-Oce77YKMoUcJmVDl3Kw583BA_5dE0BLlXW0RFDRt_Acb0XrEltuy3CaYDRddJzZ7Qelqkk20ANIWxwq2WhZW_G3_KE5Ox5Q0QVgO2cYtomtsuXnNsgDY5dulYKRuNW8RmkTfUikt55C7mC4LT0KhhEh12ZW-MfTaz_3aG56jHUQ",
+  "registered": true,
+  "refreshToken": "AMf-vBwYQgMdT4XNC3dEDWuPpMFpMwD1U0hCK4Lx0OXDPIrE9vMU2CiQlNwjrOMwzik4C_0H3LA_vnkl9ChTZNUg2e-DUkzgGMpDoSs7R6bGdZvrMVx7fkcpjc-Pw44-QhUb2YoCjrzB9tZ3tC7L9i3J0BLzd_KyFcUGT-sXLhB6CABhVSDRifUI0n0rjlR6EkNzcZl2r_3_I7n5YYwMjwSKddL3cdld45ny9KmfZtnni8eNpIhQT5E",
+
+  curl -v -X GET http://localhost:8080/protected-route \
+    -H "Authorization: Bearer eyJhbGciOiJSUzI1NiIsImtpZCI6ImE5ZGRjYTc2YzEyMzMyNmI5ZTJlODJkOGFjNDg0MWU1MzMyMmI3NmEiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJodHRwczovL3NlY3VyZXRva2VuLmdvb2dsZS5jb20vdmlydHVhbC1hc3Npc3RhbnQtYXBwLWY3ZjFkIiwiYXVkIjoidmlydHVhbC1hc3Npc3RhbnQtYXBwLWY3ZjFkIiwiYXV0aF90aW1lIjoxNzQzNjMzODc3LCJ1c2VyX2lkIjoiUE1lOTNrVER3R1VuOEJIUG9sMHFycVNPdTlzMSIsInN1YiI6IlBNZTkza1REd0dVbjhCSFBvbDBxcnFTT3U5czEiLCJpYXQiOjE3NDM2MzM4NzcsImV4cCI6MTc0MzYzNzQ3NywiZW1haWwiOiJ0ZXN0QHRlc3QuY29tIiwiZW1haWxfdmVyaWZpZWQiOmZhbHNlLCJmaXJlYmFzZSI6eyJpZGVudGl0aWVzIjp7ImVtYWlsIjpbInRlc3RAdGVzdC5jb20iXX0sInNpZ25faW5fcHJvdmlkZXIiOiJwYXNzd29yZCJ9fQ.J5xfWHMMPSqCBXaRnWLrQcl5pCE1DbFoEx-Rn7LMDaTQAdCfDyz2Tx8pnV_YO4GEqsAFSvNRnuoT2j_4HUR4v3rqD_0_vIBirMOyJtp0grZ4EDtJ4yyhRum8IEDBjtK3JNlRsT49gT3sw-njd-SjbZv1dc8KDQTp5kT5sdrNTc-Oce77YKMoUcJmVDl3Kw583BA_5dE0BLlXW0RFDRt_Acb0XrEltuy3CaYDRddJzZ7Qelqkk20ANIWxwq2WhZW_G3_KE5Ox5Q0QVgO2cYtomtsuXnNsgDY5dulYKRuNW8RmkTfUikt55C7mC4LT0KhhEh12ZW-MfTaz_3aG56jHUQ" \
+    -H "Content-Type: application/json"

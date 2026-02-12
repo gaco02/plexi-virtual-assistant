@@ -1,0 +1,10 @@
+# Firebase only commit when creating docker container 
+!config/firebase-credentials.json
+
+# Firebase credentials - NEVER commit this file
+# config/firebase-credentials.json
+__pycache__/
+*.pyc
+.venv/*.pyc
+__pycache__/
+.env

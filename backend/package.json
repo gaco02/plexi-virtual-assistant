@@ -1,0 +1,23 @@
+{
+  "name": "mcp-nutrition-http-wrapper",
+  "version": "1.0.0",
+  "description": "HTTP wrapper for MCP OpenNutrition server",
+  "main": "mcp_http_wrapper.js",
+  "scripts": {
+    "start": "node mcp_http_wrapper.js",
+    "dev": "nodemon mcp_http_wrapper.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "keywords": ["mcp", "nutrition", "api", "wrapper"],
+  "author": "Your Name",
+  "license": "MIT"
+}

@@ -1,0 +1,30 @@
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Environment files
+.env
+
+# Firebase credentials (contains private keys)
+backend/config/firebase-credentials.json
+
+# === Python / Backend ===
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# Backend database files (local dev only)
+backend/data/virtual_assistant.db
+backend/calories.db
+
+# Large data files
+backend/mcp-opennutrition/data/opennutrition-dataset-2025.1.zip
+
+# === Flutter / Frontend ===
+# Handled by frontend/.gitignore
