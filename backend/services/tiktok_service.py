@@ -1,10 +1,10 @@
 # services/tiktok_service.py
-import requests, json, time
+import requests, json, time, os
 from typing import List, Dict
 from tiktok_analyzer import fetch_tiktok_data
 
 API_URL = "https://tiktok-scraper7.p.rapidapi.com/feed/search"
-API_KEY = "8a3868100emsh73f456d51587ec6p152cc8jsn186760a1e925"  # Replace with your actual API key
+API_KEY = os.getenv("RAPIDAPI_KEY", "")
 
 HEADERS = {
     "X-RapidAPI-Key": API_KEY,

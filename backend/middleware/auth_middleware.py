@@ -2,18 +2,24 @@ from fastapi import Request, HTTPException, Depends
 import firebase_admin
 from firebase_admin import auth
 import logging
+import os
 from functools import wraps
 from config.firebase_config import firebase_app
 
 logger = logging.getLogger(__name__)
 
 async def verify_firebase_token(request: Request):
-    # Skip authentication if Firebase isn't initialized
+    # Only allow dev bypass when explicitly in development mode
     if firebase_app is None:
-        # Create a mock user for development purposes
-        mock_user = {"uid": "dev-user", "email": "dev@example.com"}
-        request.state.user = mock_user
-        return mock_user
+        if os.getenv("ENVIRONMENT") == "development":
+            mock_user = {"uid": "dev-user", "email": "dev@example.com"}
+            request.state.user = mock_user
+            logger.warning("Using mock auth — ENVIRONMENT=development")
+            return mock_user
+        raise HTTPException(
+            status_code=503,
+            detail="Authentication service unavailable"
+        )
         
     try:
         # Get the Authorization header

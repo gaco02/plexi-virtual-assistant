@@ -51,8 +51,9 @@ void main() async {
 
   // Create a single instance of ApiService to be shared across repositories.
   final apiService = ApiService(
-      baseUrl: 'https://tiktok-analyzer-291212790768.us-west1.run.app');
-  // baseUrl: 'http://192.168.1.215:8000');
+      // baseUrl: 'https://tiktok-analyzer-291212790768.us-west1.run.app');  // GCP Cloud Run
+      // baseUrl: 'http://192.168.1.215:8000');  // Local dev
+      baseUrl: 'http://178.128.3.203:8080');  // Digital Ocean
 
   // Create CalorieRepository with ApiService
   final calorieRepository = CalorieRepository(apiService: apiService);

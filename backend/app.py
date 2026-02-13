@@ -1,3 +1,7 @@
+# DEPRECATED: This file is the legacy TikTok analyzer entrypoint.
+# The canonical entrypoint is api/main.py (used by Dockerfile and run_api.py).
+# Do NOT add new routes here. This file will be removed in a future cleanup.
+
 # app.py
 from fastapi import FastAPI, HTTPException
 from services.tiktok_service import fetch_tiktok_data, TikTokService

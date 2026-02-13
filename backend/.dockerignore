@@ -1,0 +1,11 @@
+.env
+.env.*
+!.env.production.example
+__pycache__
+*.pyc
+*.pyo
+.venv
+venv
+data/*.db
+.git
+.DS_Store

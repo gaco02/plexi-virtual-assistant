@@ -4,6 +4,7 @@ import requests
 import sys
 import json
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -15,7 +16,16 @@ def get_test_token():
         app = firebase_admin.get_app()
     except ValueError:
         # Initialize only if not already initialized
-        cred = credentials.Certificate("config/firebase-credentials.json")
+        credentials_path = os.getenv("FIREBASE_ADMIN_SDK_PATH", "")
+        if not credentials_path:
+            config_dir = Path(__file__).resolve().parents[1] / "config"
+            matches = sorted(config_dir.glob("*firebase-adminsdk*.json"))
+            if matches:
+                credentials_path = str(matches[0])
+            else:
+                credentials_path = str(config_dir / "firebase-credentials.json")
+
+        cred = credentials.Certificate(credentials_path)
         app = firebase_admin.initialize_app(cred)
     
     # 1. Create custom token

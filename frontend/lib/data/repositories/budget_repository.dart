@@ -14,21 +14,28 @@ class BudgetRepository {
 
       // Get current user ID for debugging
       final userId = apiService.getCurrentUserId();
+      if (userId == null) {
+        return BudgetAnalysis(
+          monthlySalary: 0.0,
+          ideal: BudgetAllocation(needs: 0.0, wants: 0.0, savings: 0.0),
+          actual: BudgetAllocation(needs: 0.0, wants: 0.0, savings: 0.0),
+        );
+      }
 
-      final queryParams = <String, dynamic>{};
+      final requestBody = <String, dynamic>{
+        'user_id': userId,
+      };
 
       // Only add month if it's not 'monthly' (which is causing the server error)
       if (month != null && month != 'monthly') {
-        queryParams['month'] = month;
+        requestBody['month'] = month;
       }
 
       // Always add period
-      queryParams['period'] = period;
+      requestBody['period'] = period;
 
-      final response = await apiService.get(
-        '/budget/analysis',
-        queryParameters: queryParams,
-      );
+      final response =
+          await apiService.post('/budget/budget-analysis', requestBody);
       // Debug log
 
       // Check if response contains an error

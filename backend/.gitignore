@@ -1,10 +1,22 @@
-# Firebase only commit when creating docker container 
-!config/firebase-credentials.json
+# Firebase credentials - NEVER commit these files
+config/firebase-credentials.json
+config/*firebase-adminsdk*.json
+config/*-credentials*.json
+config/*.json
 
-# Firebase credentials - NEVER commit this file
-# config/firebase-credentials.json
+# Python
 __pycache__/
 *.pyc
-.venv/*.pyc
-__pycache__/
+*.pyo
+.venv/
+venv/
+
+# Environment files - NEVER commit
 .env
+.env.*
+!.env.example
+!.env.production.example
+
+# Database files
+data/*.db
+*.db

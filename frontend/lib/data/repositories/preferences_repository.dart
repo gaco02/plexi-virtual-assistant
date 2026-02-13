@@ -77,10 +77,7 @@ class PreferencesRepository {
     try {
       final jsonData = preferences.toJson();
 
-      await _apiService.put(
-        '/api/auth/preferences',
-        jsonData,
-      );
+      await _apiService.post('/api/auth/preferences', jsonData);
     } catch (e) {
       throw Exception('Failed to update preferences: $e');
     }

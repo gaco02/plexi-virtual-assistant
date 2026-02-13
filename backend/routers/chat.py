@@ -222,7 +222,7 @@ async def chat(
 
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/chat/history/", response_model=List[ChatMessage])
+@router.get("/history/", response_model=List[ChatMessage])
 async def get_chat_history(
     limit: int = 50,
     current_user = Depends(get_current_user)
@@ -232,7 +232,7 @@ async def get_chat_history(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.delete("/chat/history/")
+@router.delete("/history/")
 async def clear_chat_history(
     current_user = Depends(get_current_user)
 ):

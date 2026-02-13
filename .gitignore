@@ -10,6 +10,8 @@
 
 # Firebase credentials (contains private keys)
 backend/config/firebase-credentials.json
+backend/config/*firebase-adminsdk*.json
+backend/config/*-credentials*.json
 
 # === Python / Backend ===
 __pycache__/

@@ -11,7 +11,6 @@ class Settings(BaseSettings):
     FIREBASE_PROJECT_ID: str = os.getenv("FIREBASE_PROJECT_ID", "")
     FIREBASE_WEB_API_KEY: str = os.getenv("FIREBASE_WEB_API_KEY", "")
     FIREBASE_ADMIN_SDK_PATH: str = os.getenv("FIREBASE_ADMIN_SDK_PATH", "")
-    DATABASE_URL: str = os.getenv("DATABASE_URL", "data/virtual_assistant.db")
     DB_USER: str = os.getenv("DB_USER", "postgres")
     DB_PASSWORD: str = os.getenv("DB_PASSWORD", "postgres")
     DB_NAME: str = os.getenv("DB_NAME", "postgres")

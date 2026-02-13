@@ -62,7 +62,7 @@ Update `baseUrl` in `frontend/lib/main.dart`:
 final apiService = ApiService(baseUrl: 'your-api-url');
 ```
 - Development: `http://192.168.1.215:8000`
-- Production: `https://tiktok-analyzer-291212790768.us-west1.run.app`
+- Production (Digital Ocean): `http://<DROPLET_IP>:8080`
 
 ### Known Issues
 See `frontend/CRASH_FIX_SUMMARY.md` for calorie entry deletion crash fixes.
@@ -90,13 +90,20 @@ python tests/test_calories.py
 curl -X GET http://localhost:8000/health
 ```
 
-### Deployment
+### Deployment (Digital Ocean)
 ```bash
 cd backend
-./deploy-cloud-run.sh
-# Or manually:
-docker build -t tiktok-analyzer .
-gcloud run deploy tiktok-analyzer --image gcr.io/plexi-assistant/tiktok-analyzer
+cp .env.production.example .env    # Fill in your secrets
+docker compose up -d --build       # Start PostgreSQL + API
+docker compose logs -f api         # Follow logs
+curl http://localhost:8080/health  # Verify
+```
+
+For first-time Droplet setup, use the deploy script:
+```bash
+ssh root@<DROPLET_IP>
+cd /opt/plexi/backend
+./deploy-digitalocean.sh
 ```
 
 ### Application Structure
@@ -114,7 +121,7 @@ gcloud run deploy tiktok-analyzer --image gcr.io/plexi-assistant/tiktok-analyzer
 - `routers/restaurants.py` - Restaurant recommendations
 
 #### Core Services
-- `services/db_service.py` - Database operations (PostgreSQL/SQLite)
+- `services/db_service.py` - Database operations (PostgreSQL)
 - `services/chat_service.py` - Chat message persistence
 - `services/tools/budget_tool.py` - Financial transaction AI processing
 - `services/tools/calorie_tool.py` - Nutrition tracking AI processing
@@ -146,9 +153,10 @@ gcloud run deploy tiktok-analyzer --image gcr.io/plexi-assistant/tiktok-analyzer
 - All protected routes require `Authorization: Bearer <firebase-token>` header
 
 ### Database
-- **Development**: SQLite (`data/virtual_assistant.db`)
-- **Production**: PostgreSQL via Cloud SQL
+- **Development**: PostgreSQL (local or via `docker compose up`)
+- **Production**: PostgreSQL on Digital Ocean Droplet (via Docker Compose)
 - Async operations via `asyncpg`
+- Tables auto-created by `setup_database()` on startup
 - Migrations in `migrations/` directory
 
 #### Core Tables
@@ -159,8 +167,14 @@ gcloud run deploy tiktok-analyzer --image gcr.io/plexi-assistant/tiktok-analyzer
 OPENAI_API_KEY=your-openai-api-key
 FIREBASE_PROJECT_ID=your-firebase-project-id
 FIREBASE_WEB_API_KEY=your-firebase-web-api-key
-DATABASE_URL=data/virtual_assistant.db
+FIREBASE_CREDENTIALS=<single-line-json-of-service-account>
+DB_HOST=127.0.0.1
+DB_PORT=5432
+DB_USER=postgres
+DB_PASSWORD=postgres
+DB_NAME=postgres
 ```
+See `backend/.env.production.example` for production template.
 
 ### Backend Dependencies
 `fastapi`, `uvicorn`, `firebase-admin`, `asyncpg`, `openai`, `pydantic`, `python-dotenv`, `aiohttp`

@@ -98,8 +98,9 @@ class CalorieRepository {
           'user_id': userId,
           'period': 'daily',
         });
-        
-        if (summaryResponse != null && summaryResponse is Map<String, dynamic>) {
+
+        if (summaryResponse != null &&
+            summaryResponse is Map<String, dynamic>) {
           // The server returns the summary data directly
           summaryData = {
             'totalCalories': _parseToInt(summaryResponse['totalCalories']),
@@ -219,27 +220,33 @@ class CalorieRepository {
             _updateDailySummary();
           }
         } else {
-          print("CalorieRepository: No server entries returned, but may have summary data");
+          print(
+              "CalorieRepository: No server entries returned, but may have summary data");
         }
-        
+
         // Save summary data if we have it, regardless of whether there were entries
         if (summaryData != null) {
           final today = DateTime.now();
-          final todayStr = "${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}";
+          final todayStr =
+              "${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}";
           await _dbHelper.saveDailyCalorieSummary(todayStr, summaryData);
-          print("CalorieRepository: Saved server summary to local cache: $summaryData");
+          print(
+              "CalorieRepository: Saved server summary to local cache: $summaryData");
         }
       } else {
-        print("CalorieRepository: Server response was not successful or missing");
-        
+        print(
+            "CalorieRepository: Server response was not successful or missing");
+
         // Still save summary data if we have it from the separate summary call
         if (summaryData != null) {
           final today = DateTime.now();
-          final todayStr = "${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}";
+          final todayStr =
+              "${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}";
           await _dbHelper.saveDailyCalorieSummary(todayStr, summaryData);
-          print("CalorieRepository: Saved server summary to local cache (fallback): $summaryData");
+          print(
+              "CalorieRepository: Saved server summary to local cache (fallback): $summaryData");
         }
-        
+
         // Try to get summary data as a fallback
         await _fetchDailySummaryFromServer();
       }
@@ -508,7 +515,8 @@ class CalorieRepository {
       // Get today's date
       final now = DateTime.now();
       final today = DateTime(now.year, now.month, now.day);
-      final todayStr = "${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}";
+      final todayStr =
+          "${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}";
 
       // Check if we have valid cached summary data first
       Map<String, dynamic>? cachedSummary;
@@ -518,12 +526,14 @@ class CalorieRepository {
           if (cachedSummary != null) {
             // Check if the cache is still valid (less than 5 minutes old)
             final lastUpdated = cachedSummary['lastUpdated'] as int;
-            final lastUpdateTime = DateTime.fromMillisecondsSinceEpoch(lastUpdated);
+            final lastUpdateTime =
+                DateTime.fromMillisecondsSinceEpoch(lastUpdated);
             final cacheAge = DateTime.now().difference(lastUpdateTime);
-            
+
             if (cacheAge.inMinutes < 5) {
-              print("CalorieRepository: Using cached summary data: $cachedSummary");
-              
+              print(
+                  "CalorieRepository: Using cached summary data: $cachedSummary");
+
               // Still get today's entries for the breakdown and entries list
               final todayEntries = _entries.where((entry) {
                 final entryDate = DateTime(
@@ -533,7 +543,7 @@ class CalorieRepository {
                 );
                 return entryDate.isAtSameMomentAs(today);
               }).toList();
-              
+
               return {
                 'totalCalories': cachedSummary['totalCalories'] ?? 0,
                 'totalCarbs': cachedSummary['totalCarbs'] ?? 0.0,
@@ -543,7 +553,8 @@ class CalorieRepository {
                 'entries': todayEntries.map((e) => e.toJson()).toList(),
               };
             } else {
-              print("CalorieRepository: Cached summary is stale (${cacheAge.inMinutes} minutes old), will refresh");
+              print(
+                  "CalorieRepository: Cached summary is stale (${cacheAge.inMinutes} minutes old), will refresh");
             }
           }
         } catch (e) {
@@ -552,17 +563,21 @@ class CalorieRepository {
       }
 
       // If we need to refresh or it's a new day, fetch from server
-      if (forceRefresh || _isNewDay() || !_isCacheValid || cachedSummary == null) {
+      if (forceRefresh ||
+          _isNewDay() ||
+          !_isCacheValid ||
+          cachedSummary == null) {
         if (apiService != null) {
           await _fetchDailyCaloriesFromServerVoid();
-          
+
           // After fetching from server, try to get updated cached summary
           if (userId != null) {
             try {
               cachedSummary = await _dbHelper.getDailyCalorieSummary(todayStr);
               if (cachedSummary != null) {
-                print("CalorieRepository: Using fresh cached summary data after server fetch: $cachedSummary");
-                
+                print(
+                    "CalorieRepository: Using fresh cached summary data after server fetch: $cachedSummary");
+
                 // Get today's entries for the breakdown and entries list
                 final todayEntries = _entries.where((entry) {
                   final entryDate = DateTime(
@@ -572,7 +587,7 @@ class CalorieRepository {
                   );
                   return entryDate.isAtSameMomentAs(today);
                 }).toList();
-                
+
                 return {
                   'totalCalories': cachedSummary['totalCalories'] ?? 0,
                   'totalCarbs': cachedSummary['totalCarbs'] ?? 0.0,
@@ -583,14 +598,16 @@ class CalorieRepository {
                 };
               }
             } catch (e) {
-              print("CalorieRepository: Error reading fresh cached summary: $e");
+              print(
+                  "CalorieRepository: Error reading fresh cached summary: $e");
             }
           }
         }
       }
 
       // Fall back to calculating from entries if no cached summary is available
-      print("CalorieRepository: No cached summary available, calculating from entries");
+      print(
+          "CalorieRepository: No cached summary available, calculating from entries");
 
       // Filter entries for today
       final todayEntries = _entries.where((entry) {
@@ -876,7 +893,7 @@ class CalorieRepository {
           if (response != null && response['duplicate'] == true) {
             print(
                 "CalorieRepository: Server detected duplicate, but updating summary data");
-            
+
             // Even though it's a duplicate, the server may have provided updated totals
             // Extract summary data from the server response and update our cache
             if (response['total_calories'] != null) {
@@ -887,14 +904,16 @@ class CalorieRepository {
                 'totalFat': _parseToDouble(response['total_fat']),
                 'breakdown': response['breakdown'] ?? [],
               };
-              
+
               // Save the updated summary to local cache
               final today = DateTime.now();
-              final todayStr = "${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}";
+              final todayStr =
+                  "${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}";
               await _dbHelper.saveDailyCalorieSummary(todayStr, serverSummary);
-              print("CalorieRepository: Updated cached summary with server data after duplicate detection: $serverSummary");
+              print(
+                  "CalorieRepository: Updated cached summary with server data after duplicate detection: $serverSummary");
             }
-            
+
             return true; // Server already has this entry
           }
 
@@ -905,7 +924,7 @@ class CalorieRepository {
             serverId = response['id'].toString();
             print("CalorieRepository: Server assigned ID $serverId to entry");
           }
-          
+
           // Also check if the server provided summary data in the response
           if (response != null && response['total_calories'] != null) {
             final serverSummary = {
@@ -915,12 +934,14 @@ class CalorieRepository {
               'totalFat': _parseToDouble(response['total_fat']),
               'breakdown': response['breakdown'] ?? [],
             };
-            
+
             // Save the summary to local cache
             final today = DateTime.now();
-            final todayStr = "${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}";
+            final todayStr =
+                "${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}";
             await _dbHelper.saveDailyCalorieSummary(todayStr, serverSummary);
-            print("CalorieRepository: Updated cached summary with server data from add response: $serverSummary");
+            print(
+                "CalorieRepository: Updated cached summary with server data from add response: $serverSummary");
           }
         } catch (e) {
           print("CalorieRepository: Server error while adding entry: $e");
@@ -1016,7 +1037,7 @@ class CalorieRepository {
       // If we have an API service, try to send to server
       if (apiService != null) {
         try {
-          await apiService!.post('/calories/update', {
+          await apiService!.post('/calories/entries/update', {
             'user_id': userId,
             'entry_id': id,
             'food_item': foodItem,

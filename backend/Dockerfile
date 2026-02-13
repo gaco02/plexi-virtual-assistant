@@ -1,20 +1,35 @@
-# 1. Use an official Python runtime as a parent image
-FROM python:3.10-slim
+# --- Stage 1: Install dependencies ---
+FROM python:3.11-slim AS builder
 
-# 2. Set the working directory in the container
 WORKDIR /app
 
-# 3. Copy requirements.txt into the container
 COPY requirements.txt .
-
-# 4. Install the dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 5. Copy the rest of the code into the container
+# --- Stage 2: Production image ---
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install curl for health checks
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user
+RUN useradd -m -r appuser
+
+# Copy installed packages from builder
+COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
+
+# Copy application code
 COPY . .
 
-# 6. Expose port 8080 for Cloud Run
+# Switch to non-root user
+USER appuser
+
 EXPOSE 8080
 
-# 7. Define the command to run your app
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:8080/health || exit 1
+
 CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8080"]

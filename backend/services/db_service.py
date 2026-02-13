@@ -11,16 +11,40 @@ from datetime import timedelta
 import random
 
 
+def _get_pool_kwargs():
+    """Build asyncpg connection kwargs from environment."""
+    return {
+        "host": os.getenv("DB_HOST", "127.0.0.1"),
+        "port": int(os.getenv("DB_PORT", 5432)),
+        "user": os.getenv("DB_USER", "postgres"),
+        "password": os.getenv("DB_PASSWORD", "postgres"),
+        "database": os.getenv("DB_NAME", "postgres"),
+    }
+
+
 class RestaurantDBService:
-    
+
     def __init__(self, db_name: str = "vancouver_restaurants"):
         self.db_name = db_name
-        # We'll set up the database asynchronously later
+        self._pool: Optional[asyncpg.Pool] = None
+
+    async def init_pool(self):
+        """Create the connection pool. Call once at startup."""
+        if self._pool is None:
+            self._pool = await asyncpg.create_pool(
+                **_get_pool_kwargs(), min_size=1, max_size=5
+            )
+
+    async def close_pool(self):
+        """Close the connection pool. Call on shutdown."""
+        if self._pool:
+            await self._pool.close()
+            self._pool = None
 
     async def setup_database(self):
         """Initialize the database tables"""
-        conn = await self.get_connection()
-        try:
+        await self.init_pool()
+        async with self._pool.acquire() as conn:
             # Create restaurants table with the correct schema
             await conn.execute('''
                 CREATE TABLE IF NOT EXISTS restaurants (
@@ -35,28 +59,16 @@ class RestaurantDBService:
                     Price_Range TEXT
                 )
             ''')
-        finally:
-            await conn.close()
 
     async def get_connection(self):
-        """Get an asyncpg database connection for PostgreSQL"""
-        db_host = os.getenv("DB_HOST", "127.0.0.1")
+        """Get a connection from the pool (backward-compat wrapper).
 
-        if db_host.startswith("/cloudsql"):
-            return await asyncpg.connect(
-                user=os.getenv("DB_USER", "postgres"),
-                password=os.getenv("DB_PASSWORD", "postgres"),
-                database=os.getenv("DB_NAME", "postgres"),
-                host=db_host  # Unix socket path
-            )
-        else:
-            return await asyncpg.connect(
-                user=os.getenv("DB_USER", "postgres"),
-                password=os.getenv("DB_PASSWORD", "postgres"),
-                database=os.getenv("DB_NAME", "postgres"),
-                host=db_host,
-                port=int(os.getenv("DB_PORT", 5432))
-            )
+        Returns a connection that must be released back to the pool.
+        Prefer using `async with self._pool.acquire() as conn:` directly.
+        """
+        if self._pool is None:
+            await self.init_pool()
+        return await self._pool.acquire()
 
     async def insert_or_update_restaurant(self, name, cuisine_type, price_level, highlights=None, image_url="", cuisine=None, address="", description="", rating=0, menu=None):
         """Insert or update a restaurant in the database"""
@@ -97,7 +109,7 @@ class RestaurantDBService:
                 return restaurant_id
                 
             finally:
-                await conn.close()
+                await self._pool.release(conn)
                 
         except Exception as e:
             raise e
@@ -134,7 +146,7 @@ class RestaurantDBService:
             
             return restaurants
         finally:
-            await conn.close()
+            await self._pool.release(conn)
     
     async def get_restaurant_by_id(self, restaurant_id: int) -> Optional[Dict[str, Any]]:
         """Get a restaurant by its ID"""
@@ -168,7 +180,7 @@ class RestaurantDBService:
             
             return restaurant
         finally:
-            await conn.close()
+            await self._pool.release(conn)
     
     async def get_random_restaurants(self, count: int = 5, seed: Optional[str] = None) -> List[Dict[str, Any]]:
         """
@@ -189,11 +201,11 @@ class RestaurantDBService:
                 # We'll use a different approach by using the seed in our application
                 random.seed(seed)
             
-            rows = await conn.fetch(f'''
+            rows = await conn.fetch('''
                 SELECT * FROM restaurants
                 ORDER BY RANDOM()
-                LIMIT {count}
-            ''')
+                LIMIT $1
+            ''', count)
             
             restaurants = []
             for row in rows:
@@ -218,7 +230,7 @@ class RestaurantDBService:
             
             return restaurants
         finally:
-            await conn.close()
+            await self._pool.release(conn)
     
     async def search_restaurants(self, query: str) -> List[Dict[str, Any]]:
         """Search for restaurants by name, cuisine type, or description"""
@@ -254,7 +266,7 @@ class RestaurantDBService:
             
             return restaurants
         finally:
-            await conn.close()
+            await self._pool.release(conn)
     
     async def get_restaurants_by_cuisine(self, cuisine_type: str) -> List[Dict[str, Any]]:
         """Get restaurants by cuisine type"""
@@ -289,7 +301,7 @@ class RestaurantDBService:
             
             return restaurants
         finally:
-            await conn.close()
+            await self._pool.release(conn)
     
     # Legacy methods for backward compatibility
     async def view_all_restaurants(self) -> List[Dict[str, Any]]:
@@ -306,28 +318,30 @@ class RestaurantDBService:
 
 class VirtualAssistantDB:
     def __init__(self):
-        pass
+        self._pool: Optional[asyncpg.Pool] = None
 
+    async def init_pool(self):
+        """Create the connection pool. Call once at startup."""
+        if self._pool is None:
+            self._pool = await asyncpg.create_pool(
+                **_get_pool_kwargs(), min_size=2, max_size=10
+            )
+
+    async def close_pool(self):
+        """Close the connection pool. Call on shutdown."""
+        if self._pool:
+            await self._pool.close()
+            self._pool = None
 
     async def get_connection(self):
-        """Get an asyncpg database connection for PostgreSQL"""
-        db_host = os.getenv("DB_HOST", "127.0.0.1")
+        """Get a connection from the pool (backward-compat wrapper).
 
-        if db_host.startswith("/cloudsql"):
-            return await asyncpg.connect(
-                user=os.getenv("DB_USER", "postgres"),
-                password=os.getenv("DB_PASSWORD", "postgres"),
-                database=os.getenv("DB_NAME", "postgres"),
-                host=db_host  # Unix socket path
-            )
-        else:
-            return await asyncpg.connect(
-            user=os.getenv("DB_USER", "postgres"),
-            password=os.getenv("DB_PASSWORD", "postgres"),
-            database=os.getenv("DB_NAME", "postgres"),
-            host=db_host,
-            port=int(os.getenv("DB_PORT", 5432))
-        )
+        Returns a connection that must be released back to the pool.
+        Prefer using `async with self._pool.acquire() as conn:` directly.
+        """
+        if self._pool is None:
+            await self.init_pool()
+        return await self._pool.acquire()
 
 
     async def fetch_one(self, query: str, params: tuple = None):
@@ -337,7 +351,7 @@ class VirtualAssistantDB:
             try:
                 return await conn.fetchrow(query, *(params if params else ()))
             finally:
-                await conn.close()
+                await self._pool.release(conn)
         except Exception as e:
 
             raise
@@ -349,7 +363,7 @@ class VirtualAssistantDB:
             try:
                 return await conn.fetch(query, *(params if params else ()))
             finally:
-                await conn.close()
+                await self._pool.release(conn)
         except Exception as e:
 
             raise
@@ -361,7 +375,7 @@ class VirtualAssistantDB:
             try:
                 return await conn.execute(query, *(params if params else ()))
             finally:
-                await conn.close()
+                await self._pool.release(conn)
         except Exception as e:
 
             raise
@@ -433,14 +447,13 @@ class VirtualAssistantDB:
             }
         return None
 
-    def close(self):
-        """Close any open database connections"""
-        if hasattr(self, 'connection'):
-            self.connection.close()
+    async def close(self):
+        """Close the connection pool"""
+        await self.close_pool()
 
     async def setup_database(self):
         """Initialize virtual assistant tables"""
-
+        await self.init_pool()
         try:
             conn = await self.get_connection()
             try:
@@ -590,9 +603,15 @@ class VirtualAssistantDB:
                 if 'sex' not in existing_columns:
                     await conn.execute("ALTER TABLE user_preferences ADD COLUMN sex TEXT")
 
+                # Create indexes for frequently queried columns
+                await conn.execute("CREATE INDEX IF NOT EXISTS idx_transactions_user_date ON transactions(user_id, timestamp)")
+                await conn.execute("CREATE INDEX IF NOT EXISTS idx_meals_user_date ON meals(user_id, timestamp)")
+                await conn.execute("CREATE INDEX IF NOT EXISTS idx_chat_messages_user_conv ON chat_messages(user_id, conversation_id)")
+                await conn.execute("CREATE INDEX IF NOT EXISTS idx_chat_messages_user_ts ON chat_messages(user_id, timestamp)")
+                await conn.execute("CREATE INDEX IF NOT EXISTS idx_budget_alloc_user_month ON budget_allocations(user_id, month)")
 
             finally:
-                await conn.close()
+                await self._pool.release(conn)
         except Exception as e:
 
             raise
@@ -636,7 +655,7 @@ class VirtualAssistantDB:
                     user_id = str(user_id)
                 return user_id
             finally:
-                await conn.close()
+                await self._pool.release(conn)
         except Exception as e:
             print(f"DEBUG DB: Error in create_user: {str(e)}")
             raise
@@ -687,7 +706,7 @@ class VirtualAssistantDB:
                     print(f"DEBUG DB: No user found with firebase_uid: {firebase_uid}")
                     return None
             finally:
-                await conn.close()
+                await self._pool.release(conn)
         except Exception as e:
 
             raise
@@ -860,7 +879,7 @@ class VirtualAssistantDB:
             print(f"DEBUG DB: Error fixing user_preferences table: {str(e)}")
             raise
         finally:
-            await conn.close()
+            await self._pool.release(conn)
     
     async def update_user_preferences(self, user_id: str, preferences: UserPreferences):
         """Update user preferences"""
@@ -878,7 +897,7 @@ class VirtualAssistantDB:
                     user_exists = await conn.fetchval('SELECT COUNT(*) FROM users WHERE firebase_uid = $1', user_id)
                     print(f"DEBUG DB: Direct user check count: {user_exists}")
                 finally:
-                    await conn.close()
+                    await self._pool.release(conn)
                     
                 if not user_exists:
                     print(f"DEBUG DB: User {user_id} doesn't exist in users table, cannot update preferences")
@@ -1054,7 +1073,7 @@ class VirtualAssistantDB:
                 print(f"DEBUG DB: SQL execution result: {result}")
                 return True
             finally:
-                await conn.close()
+                await self._pool.release(conn)
         except Exception as e:
 
             raise
@@ -1097,7 +1116,7 @@ class VirtualAssistantDB:
                 print(f"Transaction saved with ID: {transaction_id}")
                 return transaction_id
             finally:
-                await conn.close()
+                await self._pool.release(conn)
         except Exception as e:
             print(f"Error in save_transaction: {e}")
             import traceback
@@ -1275,7 +1294,7 @@ class VirtualAssistantDB:
                 logging.error(f"Database error while saving meal: {db_error}")
                 raise ValueError(f"Database error: {str(db_error)}")
             finally:
-                await conn.close()
+                await self._pool.release(conn)
         except Exception as e:
             logging.error(f"Error in save_meal: {e}")
             import traceback
@@ -1296,7 +1315,7 @@ class VirtualAssistantDB:
                 
                 return message_id
             finally:
-                await conn.close()
+                await self._pool.release(conn)
         except Exception as e:
             raise
 
@@ -1350,7 +1369,7 @@ class VirtualAssistantDB:
                     logging.error(f"Database error while updating transaction: {db_error}")
                     raise ValueError(f"Database error: {str(db_error)}")
             finally:
-                await conn.close()
+                await self._pool.release(conn)
         except Exception as e:
             logging.error(f"Error updating transaction: {e}")
             raise
@@ -1398,7 +1417,7 @@ class VirtualAssistantDB:
                     logging.error(f"Database error while deleting transaction: {db_error}")
                     raise ValueError(f"Database error: {str(db_error)}")
             finally:
-                await conn.close()
+                await self._pool.release(conn)
         except Exception as e:
             logging.error(f"Error deleting transaction: {e}")
             raise
@@ -1441,7 +1460,7 @@ class VirtualAssistantDB:
                 messages = [dict(row) for row in rows]
                 return messages
             finally:
-                await conn.close()
+                await self._pool.release(conn)
         except Exception as e:
             raise
 
@@ -1462,7 +1481,7 @@ class VirtualAssistantDB:
                 conversations = [dict(row) for row in rows]
                 return conversations
             finally:
-                await conn.close()
+                await self._pool.release(conn)
         except Exception as e:
             raise
 
@@ -1488,7 +1507,7 @@ class VirtualAssistantDB:
                 messages = [dict(row) for row in rows]
                 return messages
             finally:
-                await conn.close()
+                await self._pool.release(conn)
         except Exception as e:
             raise 
 
@@ -1614,7 +1633,7 @@ class VirtualAssistantDB:
                     print(f"Unexpected update result format: {result}")
                     return False
             finally:
-                await conn.close()
+                await self._pool.release(conn)
         except Exception as e:
             print(f"Error updating calorie entry: {str(e)}")
             # Re-raise the exception to provide more details in the API response
@@ -1686,7 +1705,7 @@ class VirtualAssistantDB:
                     print(f"Unexpected delete result format: {result}")
                     return False
             finally:
-                await conn.close()
+                await self._pool.release(conn)
         except Exception as e:
             print(f"Error deleting calorie entry: {str(e)}")
             # Re-raise the exception to provide more details in the API response
@@ -1880,7 +1899,7 @@ class VirtualAssistantDB:
                     
                     return entries
                 finally:
-                    await conn.close()
+                    await self._pool.release(conn)
             else:
                 # For other periods, use a different approach
                 # Format dates as strings in ISO format
@@ -1979,7 +1998,7 @@ class VirtualAssistantDB:
                 
                     return entries
                 finally:
-                    await conn.close()
+                    await self._pool.release(conn)
         except Exception as e:
             print(f"Error in get_raw_calorie_entries: {str(e)}")
             return []
@@ -2082,7 +2101,7 @@ class VirtualAssistantDB:
                 
                 return category_totals
             finally:
-                await conn.close()
+                await self._pool.release(conn)
         except Exception as e:
             print(f"Error in get_transactions_by_period: {str(e)}")
             return {}
@@ -2138,7 +2157,7 @@ class VirtualAssistantDB:
                 return user
                 
             finally:
-                await conn.close()
+                await self._pool.release(conn)
         except Exception as e:
             import traceback
             print(f"DEBUG DB: Error in get_user_by_email: {str(e)}")
@@ -2271,7 +2290,7 @@ class VirtualAssistantDB:
                 
                 return transactions
             finally:
-                await conn.close()
+                await self._pool.release(conn)
         except Exception as e:
             print(f"Error in get_raw_transactions: {str(e)}")
             return []
@@ -2319,7 +2338,7 @@ class VirtualAssistantDB:
                     print(f"DEBUG DB: Failed to link Firebase UID {firebase_uid} to user {existing_user.id}")
                     return None
             finally:
-                await conn.close()
+                await self._pool.release(conn)
         except Exception as e:
             import traceback
             print(f"DEBUG DB: Error in link_firebase_uid_to_user: {str(e)}")
